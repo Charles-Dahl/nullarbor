@@ -1,0 +1,12 @@
+{
+    "name": "nullarbor",
+    "version": "0.0.1",
+    "title": "Nullarbor",
+    "author": "Charles Dahl",
+    "factorio_version": "2.0",
+    "dependencies": [
+        "base >= 2.0",
+        "space-age >= 2.0"
+    ],
+    "description": "A frontier industrial desert planet built on fuel, rail, and uranium."
+}
