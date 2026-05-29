@@ -1,14 +1,14 @@
 data:extend({
   {
     type = "resource",
-    name = "nullarbor-exposed-granite",
+    name = "nullarbor-bauxite",
     icon = "__base__/graphics/icons/stone.png",
     icon_size = 64,
     flags = { "placeable-neutral" },
     category = "basic-solid",
     minable = {
       mining_time = 1,
-      result = "nullarbor-exposed-granite",
+      result = "nullarbor-bauxite",
     },
     collision_box = { { -0.1, -0.1 }, { 0.1, 0.1 } },
     selection_box = { { -0.5, -0.5 }, { 0.5, 0.5 } },
