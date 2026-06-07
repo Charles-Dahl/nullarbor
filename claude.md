@@ -26,11 +26,17 @@ A Factorio: Space Age mod adding a desert frontier planet. Mid-late game, positi
 - **Ferrous shale**: workhorse. Pyromill recipe: shale → iron ore + solid fuel.
 - **Cupric shale**: support. Pyromill recipe: shale → copper ore + solid fuel.
 - **Bauxite**: specialty. Pyromill recipe: bauxite → aluminium + stone.
-- **Deep-sand enriched uranium fluid**: pumpjack-extracted, rare, deep desert. Produces irradiated oil that must be processed to separate isotopes.
+- **Irradiated Oil**: pumpjack-extracted, rare, deep desert. Produces irradiated oil that must be processed to separate isotopes.
 
 ### Refinery chemistry (Nullarbor-specific recipe)
-- Irradiated oil + water → heavy oil + uranium isotopes (specifically U-238, with trace U-235).
+- Irradiated oil + water → heavy oil + radioactive slurry.
 - Heavy oil cracks down to light, then petroleum, exactly as vanilla. Players get the full petrochemical chain by cracking, not by direct refinery output.
+
+### Chemical processing
+2 uranium recipes to target the uranium isotopes individually, each one returns a portion of the slurry and has a chance to find some uranium. Also a new coal recipe from solid fuel
+- Radioactive slurry = smaller amount of radioactive slurry + chance of U238
+- Radioactive slurry = smaller amount of radioactive slurry + chance of U235
+- Solid fuel = coal + petroleum (the only way to get coal on this planet)
 
 ## Buildings
 

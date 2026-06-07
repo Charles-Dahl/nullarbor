@@ -16,6 +16,7 @@ require("prototypes.items.uranium-aluminium-alloy")
 
 -- Fluids
 require("prototypes.fluids.irradiated-oil")
+require("prototypes.fluids.radioactive-slurry")
 
 -- Resources
 require("prototypes.resources.ferrous-shale")
