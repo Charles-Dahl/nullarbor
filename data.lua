@@ -21,6 +21,7 @@ require("prototypes.resources.bauxite")
 -- Entities
 require("prototypes.entities.pyromill")
 require("prototypes.entities.burner-assembling-machine")
+require("prototypes.entities.surface-rock")
 
 -- Recipes
 require("prototypes.recipes.pyromill")
