@@ -14,10 +14,14 @@ require("prototypes.items.pyromill")
 require("prototypes.items.burner-assembling-machine")
 require("prototypes.items.uranium-aluminium-alloy")
 
+-- Fluids
+require("prototypes.fluids.irradiated-oil")
+
 -- Resources
 require("prototypes.resources.ferrous-shale")
 require("prototypes.resources.cupric-shale")
 require("prototypes.resources.bauxite")
+require("prototypes.resources.irradiated-oil")
 
 -- Entities
 require("prototypes.entities.pyromill")
