@@ -11,6 +11,7 @@ data:extend({
     prerequisites = { "nullarbor-burner-assembling-machine" },
     effects = {
       { type = "unlock-recipe", recipe = "nullarbor-refine-irradiated-oil" },
+      { type = "unlock-recipe", recipe = "nullarbor-slurry-u238" },
     },
   },
 })
