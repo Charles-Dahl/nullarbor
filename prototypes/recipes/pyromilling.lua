@@ -13,7 +13,7 @@ data:extend({
       { type = "item", name = "iron-ore", amount = 1 },
       { type = "item", name = "solid-fuel", amount = 2 },
     },
-    enabled = true,
+    enabled = false,
     allow_productivity = false,
   },
   {
@@ -30,7 +30,7 @@ data:extend({
       { type = "item", name = "copper-ore", amount = 1 },
       { type = "item", name = "solid-fuel", amount = 2 },
     },
-    enabled = true,
+    enabled = false,
     allow_productivity = false,
   },
   {
@@ -47,7 +47,7 @@ data:extend({
       { type = "item", name = "nullarbor-aluminium", amount = 1 },
       { type = "item", name = "stone", amount = 2 },
     },
-    enabled = true,
+    enabled = false,
     allow_productivity = false,
   },
 })

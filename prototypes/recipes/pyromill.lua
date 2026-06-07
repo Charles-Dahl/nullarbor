@@ -12,6 +12,6 @@ data:extend({
     results = {
       { type = "item", name = "nullarbor-pyromill", amount = 1 },
     },
-    enabled = true,
+    enabled = false,
   },
 })
