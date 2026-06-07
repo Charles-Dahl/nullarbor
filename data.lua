@@ -32,9 +32,11 @@ require("prototypes.entities.surface-rock")
 -- Technologies
 require("prototypes.technologies.pyromill")
 require("prototypes.technologies.burner-assembling-machine")
+require("prototypes.technologies.refining")
 
 -- Recipes
 require("prototypes.recipes.pyromill")
 require("prototypes.recipes.burner-assembling-machine")
 require("prototypes.recipes.uranium-aluminium-alloy")
 require("prototypes.recipes.pyromilling")
+require("prototypes.recipes.refining")
