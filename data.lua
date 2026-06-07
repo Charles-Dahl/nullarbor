@@ -25,6 +25,7 @@ require("prototypes.entities.surface-rock")
 
 -- Technologies
 require("prototypes.technologies.pyromill")
+require("prototypes.technologies.burner-assembling-machine")
 
 -- Recipes
 require("prototypes.recipes.pyromill")

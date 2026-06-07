@@ -12,6 +12,6 @@ data:extend({
     results = {
       { type = "item", name = "nullarbor-burner-assembling-machine", amount = 1 },
     },
-    enabled = true,
+    enabled = false,
   },
 })
