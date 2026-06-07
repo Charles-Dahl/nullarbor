@@ -1,5 +1,3 @@
-require("util")
-
 data:extend({
   {
     type = "furnace",

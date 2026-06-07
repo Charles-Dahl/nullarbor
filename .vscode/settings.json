@@ -2,5 +2,9 @@
     "editor.formatOnSave": true,
     "[lua]": {
         "editor.defaultFormatter": "JohnnyMorganz.stylua"
-    }
+    },
+    "Lua.workspace.userThirdParty": [
+        "c:\\Users\\Charl\\AppData\\Roaming\\Code\\User\\workspaceStorage\\2eb27f1507f846a5ac264a04bea8486a\\justarandomgeek.factoriomod-debug\\sumneko-3rd"
+    ],
+    "Lua.workspace.checkThirdParty": "ApplyInMemory"
 }
