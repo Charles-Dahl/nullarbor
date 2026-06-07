@@ -12,6 +12,7 @@ require("prototypes.items.bauxite")
 require("prototypes.items.aluminium")
 require("prototypes.items.pyromill")
 require("prototypes.items.burner-assembling-machine")
+require("prototypes.items.uranium-aluminium-alloy")
 
 -- Resources
 require("prototypes.resources.ferrous-shale")
@@ -30,4 +31,5 @@ require("prototypes.technologies.burner-assembling-machine")
 -- Recipes
 require("prototypes.recipes.pyromill")
 require("prototypes.recipes.burner-assembling-machine")
+require("prototypes.recipes.uranium-aluminium-alloy")
 require("prototypes.recipes.pyromilling")

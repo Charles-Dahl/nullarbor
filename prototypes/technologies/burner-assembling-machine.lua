@@ -12,6 +12,7 @@ data:extend({
     prerequisites = { "nullarbor-pyromill" },
     effects = {
       { type = "unlock-recipe", recipe = "nullarbor-burner-assembling-machine" },
+      { type = "unlock-recipe", recipe = "nullarbor-uranium-aluminium-alloy" },
     },
   },
 })
