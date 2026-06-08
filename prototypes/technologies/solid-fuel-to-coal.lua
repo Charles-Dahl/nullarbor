@@ -10,7 +10,7 @@ data:extend({
       time = 30,
       ingredients = {
         { "automation-science-pack", 1 },
-        { "logistics-science-pack", 1 },
+        { "logistic-science-pack", 1 },
         { "nullarbor-energetic-science-pack", 1 },
       },
     },
