@@ -13,6 +13,7 @@ data:extend({
       { type = "unlock-recipe", recipe = "nullarbor-process-ferrous-shale" },
       { type = "unlock-recipe", recipe = "nullarbor-process-cupric-shale" },
       { type = "unlock-recipe", recipe = "nullarbor-process-bauxite" },
+      { type = "unlock-recipe", recipe = "nullarbor-condenser" },
     },
   },
 })

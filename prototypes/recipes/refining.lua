@@ -8,10 +8,10 @@ data:extend({
     energy_required = 5,
     ingredients = {
       { type = "fluid", name = "nullarbor-irradiated-oil", amount = 100 },
-      { type = "fluid", name = "water",                   amount = 50  },
+      { type = "fluid", name = "water", amount = 100 },
     },
     results = {
-      { type = "fluid", name = "heavy-oil",                    amount = 45 },
+      { type = "fluid", name = "heavy-oil", amount = 100 },
       { type = "fluid", name = "nullarbor-radioactive-slurry", amount = 25 },
     },
     enabled = false,

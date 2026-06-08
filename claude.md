@@ -67,6 +67,12 @@ Belt-straddling burner inserter cluster. Sits on a belt tile with a sealed picku
 Footprint: 6x4, fits over rails
 Cargo loader/unloader straddling rails. Belt I/O on long sides, fuel slot on short sides only, toggle: Load / Unload / Off. Fuel-quality scaled. No idle fuel consumption.
 
+### Atmospheric Condenser
+Footprint: 3x3
+Energy: Electric
+Captures gases in the atmosphere to get fluids.
+Used on Nullarbor as the source of water.
+
 ### Heavy Locomotive
 Armored locomotive built from uranium-steel alloy, with personal-style equipment grid. The grid takes vanilla equipment (shields, fuel-burning generators, weapons). Interleaving armored locomotives with cargo wagons distributes equipment grids along a consist, giving players a configurable mobile-fortress design space. The locomotive's alloy plating provides physical and explosion resistance.
 

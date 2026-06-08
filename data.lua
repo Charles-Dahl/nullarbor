@@ -12,6 +12,7 @@ require("prototypes.items.bauxite")
 require("prototypes.items.aluminium")
 require("prototypes.items.pyromill")
 require("prototypes.items.burner-assembling-machine")
+require("prototypes.items.condenser")
 require("prototypes.items.uranium-aluminium-alloy")
 require("prototypes.items.energetic-science-pack")
 
@@ -28,6 +29,7 @@ require("prototypes.resources.irradiated-oil")
 -- Entities
 require("prototypes.entities.pyromill")
 require("prototypes.entities.burner-assembling-machine")
+require("prototypes.entities.condenser")
 require("prototypes.entities.surface-rock")
 
 -- Technologies
@@ -42,6 +44,7 @@ require("prototypes.recipes.pyromill")
 require("prototypes.recipes.burner-assembling-machine")
 require("prototypes.recipes.uranium-aluminium-alloy")
 require("prototypes.recipes.pyromilling")
+require("prototypes.recipes.condenser")
 require("prototypes.recipes.refining")
 require("prototypes.recipes.chemical-processing")
 require("prototypes.recipes.energetic-science-pack")
