@@ -13,6 +13,7 @@ require("prototypes.items.aluminium")
 require("prototypes.items.pyromill")
 require("prototypes.items.burner-assembling-machine")
 require("prototypes.items.uranium-aluminium-alloy")
+require("prototypes.items.energetic-science-pack")
 
 -- Fluids
 require("prototypes.fluids.irradiated-oil")
@@ -41,3 +42,4 @@ require("prototypes.recipes.uranium-aluminium-alloy")
 require("prototypes.recipes.pyromilling")
 require("prototypes.recipes.refining")
 require("prototypes.recipes.chemical-processing")
+require("prototypes.recipes.energetic-science-pack")

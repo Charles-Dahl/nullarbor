@@ -13,6 +13,7 @@ data:extend({
     effects = {
       { type = "unlock-recipe", recipe = "nullarbor-burner-assembling-machine" },
       { type = "unlock-recipe", recipe = "nullarbor-uranium-aluminium-alloy" },
+      { type = "unlock-recipe", recipe = "nullarbor-energetic-science-pack" },
     },
   },
 })

@@ -16,4 +16,21 @@ data:extend({
     enabled = false,
     allow_productivity = false,
   },
+  {
+    type = "recipe",
+    name = "nullarbor-solid-fuel-to-coal",
+    icon = "__base__/graphics/icons/coal.png",
+    icon_size = 64,
+    category = "chemistry",
+    energy_required = 5,
+    ingredients = {
+      { type = "item", name = "solid-fuel", amount = 3 },
+    },
+    results = {
+      { type = "item",  name = "coal",         amount = 2  },
+      { type = "fluid", name = "petroleum-gas", amount = 20 },
+    },
+    enabled = false,
+    allow_productivity = false,
+  },
 })
