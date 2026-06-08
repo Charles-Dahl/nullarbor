@@ -34,6 +34,7 @@ require("prototypes.entities.surface-rock")
 require("prototypes.technologies.pyromill")
 require("prototypes.technologies.burner-assembling-machine")
 require("prototypes.technologies.refining")
+require("prototypes.technologies.energetic-science-pack")
 
 -- Recipes
 require("prototypes.recipes.pyromill")

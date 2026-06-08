@@ -8,7 +8,7 @@ data:extend({
       type = "mine-entity",
       entity = "nullarbor-irradiated-oil",
     },
-    prerequisites = { "nullarbor-burner-assembling-machine" },
+    prerequisites = {},
     effects = {
       { type = "unlock-recipe", recipe = "nullarbor-refine-irradiated-oil" },
       { type = "unlock-recipe", recipe = "nullarbor-slurry-u238" },
