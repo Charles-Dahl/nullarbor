@@ -58,6 +58,11 @@ Signature recipes:
 - Uranium-steel alloy: steel + U-238 + aluminium → alloy. Each metal contributes a property: steel structures, U-238 densifies, aluminium chemically stabilizes/passivates the uranium against oxidation.
 - Thermite: aluminium + iron ore → thermite. Premium fuel that doubles as the science pack for this planet.
 
+### Burner Inserter MKII
+Footprint: 1x1
+Energy: Fuel
+This is an upgrade to the vanilla burner inserter. It scales speed with the fuel used and can fuel itself from the machine it's taking from as well as belts
+
 ### Distributor
 Footprint: 1x2
 Energy: Fuel
