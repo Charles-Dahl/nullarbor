@@ -48,6 +48,7 @@ data:extend({
     },
     extension_speed = 0.1,
     rotation_speed = 0.04,
+    allow_burner_leech = true,
     filter_count = 5,
     icon_draw_specification = { scale = 0.5 },
     impact_category = "metal",
