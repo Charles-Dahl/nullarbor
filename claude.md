@@ -76,6 +76,8 @@ Placement (train-stop model): must straddle a straight belt run lengthwise — b
 Footprint: 6x4, fits over rails
 Cargo loader/unloader straddling rails. Belt I/O on long sides, fuel slot on short sides only, toggle: Load / Unload / Off. Fuel-quality scaled. No idle fuel consumption.
 
+Placement is free single-tile (no rail-grid snap): wagons in a stopped consist sit on a 7-tile pitch, so per-wagon gantries can't align to the 2-tile rail lattice — correct positioning over rails is a validation/runtime concern, not a build-grid one. Placed with no rails at all, the gantry is still functional: it moves items between the belts on its two long sides, acting as a belt balancer.
+
 ### Atmospheric Condenser
 Footprint: 3x3
 Energy: Electric
