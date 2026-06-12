@@ -39,6 +39,7 @@ require("prototypes.entities.surface-rock")
 -- Technologies
 require("prototypes.technologies.pyromill")
 require("prototypes.technologies.burner-assembling-machine")
+require("prototypes.technologies.distributor")
 require("prototypes.technologies.refining")
 require("prototypes.technologies.energetic-science-pack")
 require("prototypes.technologies.solid-fuel-to-coal")
