@@ -77,10 +77,10 @@ local primary = {
   -- always opens the distributor GUI.
   selection_priority = 60,
   damaged_trigger_effect = hit_effects.entity(),
+  -- Inert: the primary never operates (control.lua keeps it inactive); it
+  -- is the housing, GUI, and fuel buffer. The four hidden arms do all the
+  -- work.
   pickup_position = { 0, 0.5 },
-  -- Long-inserter reach: lands in the second tile out from the belt, so it
-  -- feeds 2x2 machines hugging the belt (far column) or machines set one
-  -- tile back.
   insert_position = { -2.2, 0.5 },
   energy_per_movement = "7kJ",
   energy_per_rotation = "7kJ",
@@ -155,8 +155,11 @@ local arm = {
   max_health = 50,
   collision_box = { { -0.1, -0.1 }, { 0.1, 0.1 } },
   collision_mask = { layers = {} },
-  pickup_position = { 0, 0 },
-  insert_position = { -2.2, 0 },
+  -- The arm sits on the belt edge facing its drop side: the belt tile is
+  -- directly behind it, the drop target 1.7 ahead (the second tile out
+  -- from the belt, long-inserter reach).
+  pickup_position = { 0, 0.5 },
+  insert_position = { 0, -1.7 },
   energy_per_movement = "7kJ",
   energy_per_rotation = "7kJ",
   energy_source = {
@@ -171,11 +174,10 @@ local arm = {
   rotation_speed = 0.04,
   allow_burner_leech = true,
   filter_count = 5,
+  working_sound = sounds.inserter_fast,
 }
 
-for k, v in pairs(hand_sprites()) do
-  primary[k] = v
-end
+-- Only the arms render hands; the primary is a static housing.
 for k, v in pairs(hand_sprites()) do
   arm[k] = v
 end

@@ -28,6 +28,14 @@ local OPPOSITE = {
   [defines.direction.west] = defines.direction.east,
 }
 
+-- 90° counter-clockwise of each direction: the "left" side of the belt axis.
+local LEFT_OF = {
+  [defines.direction.north] = defines.direction.west,
+  [defines.direction.west] = defines.direction.south,
+  [defines.direction.south] = defines.direction.east,
+  [defines.direction.east] = defines.direction.north,
+}
+
 -- ========================= placement validity =========================
 
 -- The engine curves a belt exactly when it has a single input entering from
@@ -82,19 +90,28 @@ end
 
 -- ========================= composite lifecycle =========================
 
--- An arm facing the same direction as the primary drops to the left of the
--- belt axis; facing the opposite direction drops to the right.
+-- Four arms, one per covered-tile/side combination, each perched on the
+-- belt edge facing its drop side, with the belt tile directly behind it.
 local function arm_specs(primary)
   local dir = primary.direction
   local front = FRONT[dir]
   local pos = primary.position
-  local back_tile = { x = pos.x - front.x * 0.5, y = pos.y - front.y * 0.5 }
-  local front_tile = { x = pos.x + front.x * 0.5, y = pos.y + front.y * 0.5 }
-  return {
-    { position = back_tile, direction = OPPOSITE[dir] },
-    { position = front_tile, direction = dir },
-    { position = front_tile, direction = OPPOSITE[dir] },
-  }
+  local left_dir = LEFT_OF[dir]
+  local right_dir = OPPOSITE[left_dir]
+  local left = FRONT[left_dir]
+  local specs = {}
+  for _, along in ipairs({ -0.5, 0.5 }) do
+    local tile = { x = pos.x + front.x * along, y = pos.y + front.y * along }
+    specs[#specs + 1] = {
+      position = { x = tile.x + left.x * 0.5, y = tile.y + left.y * 0.5 },
+      direction = left_dir,
+    }
+    specs[#specs + 1] = {
+      position = { x = tile.x - left.x * 0.5, y = tile.y - left.y * 0.5 },
+      direction = right_dir,
+    }
+  end
+  return specs
 end
 
 local function create_arms(primary)
@@ -130,15 +147,18 @@ end
 
 -- pcall: custom_status is a recent API; if unavailable, the native
 -- "Disabled by script" status from active = false still shows.
-local function set_custom_status(entity, invalid)
+local function set_custom_status(entity, valid)
   pcall(function()
-    if invalid then
+    if valid then
+      entity.custom_status = {
+        diode = defines.entity_status_diode.green,
+        label = { "entity-status.working" },
+      }
+    else
       entity.custom_status = {
         diode = defines.entity_status_diode.red,
         label = { "nullarbor.distributor-status-no-belt" },
       }
-    else
-      entity.custom_status = nil
     end
   end)
 end
@@ -146,83 +166,17 @@ end
 local function apply_validity(entry)
   local primary = entry.primary
   local valid = placement_valid(primary.surface, primary.position, primary.direction)
-  primary.active = valid
+  -- The primary never operates — it's the housing, GUI, and fuel buffer —
+  -- so its status line is script-managed to reflect the cluster's state.
+  primary.active = false
   for _, arm in ipairs(entry.arms) do
     if arm.valid then
       arm.active = valid
     end
   end
-  set_custom_status(primary, not valid)
+  set_custom_status(primary, valid)
   return valid
 end
-
--- ========================= hover indication =========================
-
--- The primary's native arrow is suppressed in the prototype (it points
--- diagonally because the entity center sits on the tile seam), so render
--- perpendicular arrows for all four drops plus pickup markers on the two
--- covered belt tiles while a player has the distributor selected.
-local function clear_arrows(player_index)
-  storage.selection_arrows = storage.selection_arrows or {}
-  local arrows = storage.selection_arrows[player_index]
-  if arrows then
-    for _, arrow in pairs(arrows) do
-      if arrow.valid then
-        arrow.destroy()
-      end
-    end
-    storage.selection_arrows[player_index] = nil
-  end
-end
-
-local function draw_arrows(player_index, entry)
-  local arrows = {}
-  local inserters = { entry.primary }
-  for _, arm in ipairs(entry.arms) do
-    inserters[#inserters + 1] = arm
-  end
-  for _, inserter in ipairs(inserters) do
-    if inserter.valid then
-      arrows[#arrows + 1] = rendering.draw_sprite({
-        sprite = "utility/indication_arrow",
-        -- Every arm drops to the left of its facing.
-        orientation = (inserter.orientation - 0.25) % 1,
-        target = inserter.drop_position,
-        surface = inserter.surface,
-        players = { player_index },
-        render_layer = "arrow",
-      })
-    end
-  end
-  local primary = entry.primary
-  if primary.valid then
-    local front = FRONT[primary.direction]
-    local pos = primary.position
-    for _, offset in ipairs({ -0.5, 0.5 }) do
-      arrows[#arrows + 1] = rendering.draw_sprite({
-        sprite = "utility/indication_line",
-        orientation = primary.orientation,
-        target = { x = pos.x + front.x * offset, y = pos.y + front.y * offset },
-        surface = primary.surface,
-        players = { player_index },
-        render_layer = "arrow",
-      })
-    end
-  end
-  storage.selection_arrows[player_index] = arrows
-end
-
-script.on_event(defines.events.on_selected_entity_changed, function(event)
-  clear_arrows(event.player_index)
-  local player = game.get_player(event.player_index)
-  local selected = player and player.selected
-  if selected and selected.valid and selected.name == DISTRIBUTOR then
-    local entry = storage.distributors[selected.unit_number]
-    if entry then
-      draw_arrows(event.player_index, entry)
-    end
-  end
-end)
 
 -- ========================= build / removal =========================
 
@@ -398,12 +352,6 @@ script.on_event(defines.events.on_player_rotated_entity, function(event)
   sync_settings(entry)
   -- Rotating off the belt axis isn't rejected, just disabled with a status.
   apply_validity(entry)
-  for _, player in pairs(game.connected_players) do
-    if player.selected == entity then
-      clear_arrows(player.index)
-      draw_arrows(player.index, entry)
-    end
-  end
 end)
 
 -- ========================= settings sync =========================
@@ -580,7 +528,6 @@ end)
 
 script.on_init(function()
   storage.distributors = {}
-  storage.selection_arrows = {}
   storage.pending_builds = {}
   storage.highlight_players = {}
   storage.highlight_objects = {}
@@ -588,8 +535,33 @@ end)
 
 script.on_configuration_changed(function()
   storage.distributors = storage.distributors or {}
-  storage.selection_arrows = storage.selection_arrows or {}
+  -- One-time cleanup of the retired hover-arrow renderings.
+  if storage.selection_arrows then
+    for _, arrows in pairs(storage.selection_arrows) do
+      for _, arrow in pairs(arrows) do
+        if arrow.valid then
+          arrow.destroy()
+        end
+      end
+    end
+    storage.selection_arrows = nil
+  end
   storage.pending_builds = storage.pending_builds or {}
   storage.highlight_players = storage.highlight_players or {}
   storage.highlight_objects = storage.highlight_objects or {}
+  -- Arm geometry can change between mod versions: rebuild every cluster.
+  for unit_number, entry in pairs(storage.distributors) do
+    if entry.primary.valid then
+      for _, arm in ipairs(entry.arms) do
+        if arm.valid then
+          arm.destroy()
+        end
+      end
+      entry.arms = create_arms(entry.primary)
+      sync_settings(entry)
+      apply_validity(entry)
+    else
+      storage.distributors[unit_number] = nil
+    end
+  end
 end)
