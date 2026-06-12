@@ -66,7 +66,9 @@ This is an upgrade to the vanilla burner inserter. It scales speed with the fuel
 ### Distributor
 Footprint: 1x2
 Energy: Fuel
-Belt-straddling burner inserter cluster. Sits on a belt tile with a sealed pickup zone. Two drop tiles per long side feed up to 4 adjacent buildings (2 per side). Fuel priority: self > target buildings > pass-through for ingredient-handling roles. Vanilla filter-inserter logic. Solves the "many burner buildings need fuel" problem in dense layouts.
+Belt-straddling burner inserter cluster. Sits on a belt tile with a sealed pickup zone. Four drop targets, two per long side, landing one tile out from the footprint (long-inserter reach): feeds 2x2 machines hugging the belt (drop lands in their far column) or machines set one tile back; 1x1 machines must sit one tile back. Fuel priority: self > target buildings > pass-through for ingredient-handling roles. Vanilla filter-inserter logic. Solves the "many burner buildings need fuel" problem in dense layouts.
+
+Fueling: deep fuel buffer (several slots), refuels itself natively from any fuel it handles, and accepts fuel inserted by hand or by inserter — so it stays useful on belts that never carry fuel; belt-borne fuel makes it fully autonomous. Implemented as a composite: one selectable primary inserter (full 1x2 selection box, higher selection priority than belts, custom collision layer so it overlaps belts but blocks other distributors) plus three hidden arm inserters managed by control.lua (lifecycle, filter sync from primary, fuel top-up from primary's buffer).
 
 ### Gantry
 Footprint: 6x4, fits over rails
