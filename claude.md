@@ -70,6 +70,8 @@ Belt-straddling burner inserter cluster. Sits on a belt tile with a sealed picku
 
 Fueling: deep fuel buffer (several slots), refuels itself natively from any fuel it handles, and accepts fuel inserted by hand or by inserter — so it stays useful on belts that never carry fuel; belt-borne fuel makes it fully autonomous. Implemented as a composite: one selectable primary inserter (full 1x2 selection box, higher selection priority than belts, custom collision layer so it overlaps belts but blocks other distributors) plus three hidden arm inserters managed by control.lua (lifecycle, filter sync from primary, fuel top-up from primary's buffer).
 
+Placement (train-stop model): must straddle a straight belt run lengthwise — both covered tiles need straight, same-direction belts parallel to the footprint axis; belt ghosts count. Manual placement (real or ghost) elsewhere is rejected with a cursor warning; holding the item highlights valid belt runs nearby. Bot/script builds are never rejected — a distributor whose underlay is missing or invalid (removed later, rotated, or belts not yet built) is disabled with a "Must be over belts" status and re-enables automatically, checked once per second.
+
 ### Gantry
 Footprint: 6x4, fits over rails
 Cargo loader/unloader straddling rails. Belt I/O on long sides, fuel slot on short sides only, toggle: Load / Unload / Off. Fuel-quality scaled. No idle fuel consumption.
