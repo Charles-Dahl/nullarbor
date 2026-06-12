@@ -524,13 +524,12 @@ local function draw_highlights(player)
 
   local objects = {}
   for _, tile in pairs(marked) do
-    -- Native green corner brackets, same style as electric-coverage
-    -- highlights when holding a power pole.
+    -- Native green corner brackets (the copy-selection style).
     objects[#objects + 1] = surface.create_entity({
       name = "highlight-box",
       position = { tile.x + 0.5, tile.y + 0.5 },
       bounding_box = { { tile.x, tile.y }, { tile.x + 1, tile.y + 1 } },
-      box_type = "electricity",
+      box_type = "copy",
       render_player_index = player.index,
     })
   end
