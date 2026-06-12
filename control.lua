@@ -284,6 +284,16 @@ local function on_built(event)
     return
   end
 
+  -- Face the belt's flow so the housing sprite reads consistently; a 180
+  -- flip keeps the footprint and changes nothing functional.
+  local front = FRONT[entity.direction]
+  if front then
+    local belt = belt_at(entity.surface, { x = entity.position.x - front.x * 0.5, y = entity.position.y - front.y * 0.5 })
+    if belt and belt.direction == OPPOSITE[entity.direction] then
+      entity.direction = belt.direction
+    end
+  end
+
   local entry = { primary = entity, arms = create_arms(entity) }
   storage.distributors[entity.unit_number] = entry
   script.register_on_object_destroyed(entity)
