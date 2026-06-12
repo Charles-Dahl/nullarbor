@@ -112,6 +112,10 @@ local primary = {
   rotation_speed = 0.04,
   allow_burner_leech = true,
   filter_count = 5,
+  -- The native hover arrow points diagonally (entity center sits on the tile
+  -- seam, drop is offset half a tile along the axis); control.lua renders
+  -- arrows for all four drops instead.
+  draw_inserter_arrow = false,
   icon_draw_specification = { scale = 0.5 },
   impact_category = "metal",
   open_sound = sounds.inserter_open,

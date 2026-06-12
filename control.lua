@@ -68,9 +68,11 @@ local function sync_settings(entry)
   end
 end
 
--- Hover indication: the engine only draws pickup/drop arrows for the
--- primary's own arm, so render matching arrows for the three hidden arms
--- while a player has the distributor selected.
+-- Hover indication: the primary's native arrow is suppressed in the
+-- prototype (it points diagonally because the entity center sits on the
+-- tile seam), so render perpendicular arrows for all four drops plus
+-- pickup markers on the two covered belt tiles while a player has the
+-- distributor selected.
 local function clear_arrows(player_index)
   -- Lazy init: saves created before this table existed won't necessarily
   -- get on_configuration_changed if the mod version didn't change.
@@ -88,14 +90,33 @@ end
 
 local function draw_arrows(player_index, entry)
   local arrows = {}
+  local inserters = { entry.primary }
   for _, arm in ipairs(entry.arms) do
-    if arm.valid then
+    inserters[#inserters + 1] = arm
+  end
+  for _, inserter in ipairs(inserters) do
+    if inserter.valid then
       arrows[#arrows + 1] = rendering.draw_sprite({
         sprite = "utility/indication_arrow",
-        -- Arms drop to the left of their facing.
-        orientation = (arm.orientation - 0.25) % 1,
-        target = arm.drop_position,
-        surface = arm.surface,
+        -- Every arm drops to the left of its facing.
+        orientation = (inserter.orientation - 0.25) % 1,
+        target = inserter.drop_position,
+        surface = inserter.surface,
+        players = { player_index },
+        render_layer = "arrow",
+      })
+    end
+  end
+  local primary = entry.primary
+  if primary.valid then
+    local front = FRONT[primary.direction]
+    local pos = primary.position
+    for _, offset in ipairs({ -0.5, 0.5 }) do
+      arrows[#arrows + 1] = rendering.draw_sprite({
+        sprite = "utility/indication_line",
+        orientation = primary.orientation,
+        target = { x = pos.x + front.x * offset, y = pos.y + front.y * offset },
+        surface = primary.surface,
         players = { player_index },
         render_layer = "arrow",
       })
