@@ -78,6 +78,8 @@ Cargo loader/unloader straddling rails. Belt I/O on long sides, fuel slot on sho
 
 Placement is free single-tile (no rail-grid snap): wagons in a stopped consist sit on a 7-tile pitch, so per-wagon gantries can't align to the 2-tile rail lattice — correct positioning over rails is a validation/runtime concern, not a build-grid one. Placed with no rails at all, the gantry is still functional: it moves items between the belts on its two long sides, acting as a belt balancer.
 
+Implementation: a `simple-entity-with-owner` shell over a hidden container bin (the buffer; one prototype per axis since containers don't rotate) plus 12 hidden `loader-1x1` entities, 6 per long side, all connecting to the bin. Loaders have FIXED type for the building's life — the side left of the shell's facing is input (belt → bin), the right side is output (bin → belt) — so the gantry is a 6-in/6-out belt balancer. No live direction-switching (that was buggy and is unnecessary). Loaders run vanilla-dumb and always-active: an output loader with no connected belt parks a few items on its internal segment and stalls (same as a one-sided filtered splitter) — accepted, to revisit in a polish pass. Loaders can't target rolling stock, so a real serviced wagon (and the Load/Unload/Off toggle that transfers between bin and wagon) is a deferred later layer, not the buffer. Opening the shell opens the bin inventory. Rotation rebuilds the parts and carries bin contents over.
+
 ### Atmospheric Condenser
 Footprint: 3x3
 Energy: Electric

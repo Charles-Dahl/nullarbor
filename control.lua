@@ -12,6 +12,11 @@ local DISTRIBUTOR = "nullarbor-distributor"
 local ARM = "nullarbor-distributor-arm"
 local HIGHLIGHT_RADIUS = 32
 
+local GANTRY = "nullarbor-gantry"
+local GANTRY_LOADER = "nullarbor-gantry-loader"
+local GANTRY_BIN_NS = "nullarbor-gantry-bin-ns"
+local GANTRY_BIN_EW = "nullarbor-gantry-bin-ew"
+
 -- Unit vector along each direction, used to find the two covered belt tiles
 -- relative to the primary's position (which sits on the seam between them).
 local FRONT = {
@@ -178,6 +183,109 @@ local function apply_validity(entry)
   return valid
 end
 
+-- ========================= gantry composite =========================
+
+-- One loader per long-side edge tile, 6 per side, belt end facing outward.
+-- The side to the left of the shell's facing is the input side (belt ->
+-- buffer), the right side is output (buffer -> belt); rotating the shell
+-- cycles which physical sides those are.
+local function gantry_loader_specs(shell)
+  local pos = shell.position
+  local vertical = shell.direction == defines.direction.north or shell.direction == defines.direction.south
+  local input_side = LEFT_OF[shell.direction]
+  local specs = {}
+  if vertical then
+    for _, sx in ipairs({ -1.5, 1.5 }) do
+      local outward = sx < 0 and defines.direction.west or defines.direction.east
+      for gy = -2.5, 2.5 do
+        specs[#specs + 1] = {
+          position = { x = pos.x + sx, y = pos.y + gy },
+          outward = outward,
+          is_input = outward == input_side,
+        }
+      end
+    end
+  else
+    for _, sy in ipairs({ -1.5, 1.5 }) do
+      local outward = sy < 0 and defines.direction.north or defines.direction.south
+      for gx = -2.5, 2.5 do
+        specs[#specs + 1] = {
+          position = { x = pos.x + gx, y = pos.y + sy },
+          outward = outward,
+          is_input = outward == input_side,
+        }
+      end
+    end
+  end
+  return specs
+end
+
+local function create_gantry_parts(shell)
+  local vertical = shell.direction == defines.direction.north or shell.direction == defines.direction.south
+  local bin = shell.surface.create_entity({
+    name = vertical and GANTRY_BIN_NS or GANTRY_BIN_EW,
+    position = shell.position,
+    force = shell.force,
+  })
+  bin.destructible = false
+  local loaders = {}
+  for _, spec in ipairs(gantry_loader_specs(shell)) do
+    local loader = shell.surface.create_entity({
+      name = GANTRY_LOADER,
+      position = spec.position,
+      direction = spec.outward,
+      force = shell.force,
+    })
+    loader.destructible = false
+    -- Fixed for the building's life: input side loads the buffer, output
+    -- side empties it. The two together make a 6-lane belt balancer.
+    -- The loader is created facing outward (belt end to the external belt,
+    -- container end to the central bin); only loader_type is set after, and
+    -- direction is NOT re-set — re-setting it after loader_type flips the
+    -- input loaders' belt to the wrong side.
+    loader.loader_type = spec.is_input and "input" or "output"
+    loaders[#loaders + 1] = { entity = loader, outward = spec.outward, is_input = spec.is_input }
+  end
+  return bin, loaders
+end
+
+local function on_gantry_built(shell)
+  local bin, loaders = create_gantry_parts(shell)
+  local entry = { shell = shell, bin = bin, loaders = loaders }
+  storage.gantries[shell.unit_number] = entry
+  script.register_on_object_destroyed(shell)
+end
+
+-- Open the bin's inventory when the player opens the shell (the shell
+-- itself has no GUI).
+script.on_event("nullarbor-gantry-open", function(event)
+  local player = game.get_player(event.player_index)
+  local selected = player and player.selected
+  if selected and selected.valid and selected.name == GANTRY then
+    local entry = storage.gantries[selected.unit_number]
+    if entry and entry.bin.valid then
+      player.opened = entry.bin
+    end
+  end
+end)
+
+local gantry_mined_filter = { { filter = "name", name = GANTRY } }
+local function on_gantry_mined(event)
+  local entry = storage.gantries[event.entity.unit_number]
+  if entry and entry.bin.valid then
+    local inventory = entry.bin.get_inventory(defines.inventory.chest)
+    for i = 1, #inventory do
+      local stack = inventory[i]
+      if stack.valid_for_read then
+        event.buffer.insert(stack)
+      end
+    end
+    inventory.clear()
+  end
+end
+script.on_event(defines.events.on_player_mined_entity, on_gantry_mined, gantry_mined_filter)
+script.on_event(defines.events.on_robot_mined_entity, on_gantry_mined, gantry_mined_filter)
+
 -- ========================= build / removal =========================
 
 local function reject_feedback(player_index)
@@ -209,6 +317,10 @@ end
 local function on_built(event)
   local entity = event.entity
   if not (entity and entity.valid) then
+    return
+  end
+  if entity.name == GANTRY then
+    on_gantry_built(entity)
     return
   end
   storage.pending_builds = storage.pending_builds or {}
@@ -262,6 +374,7 @@ end
 local build_filter = {
   { filter = "name", name = DISTRIBUTOR },
   { filter = "ghost_name", name = DISTRIBUTOR },
+  { filter = "name", name = GANTRY },
 }
 script.on_event(defines.events.on_built_entity, on_built, build_filter)
 script.on_event(defines.events.on_robot_built_entity, on_built, build_filter)
@@ -307,13 +420,25 @@ end)
 -- Covers every removal path: mined by hand or robot, killed, script-destroyed.
 script.on_event(defines.events.on_object_destroyed, function(event)
   local entry = storage.distributors[event.useful_id]
-  if not entry then
+  if entry then
+    storage.distributors[event.useful_id] = nil
+    for _, arm in ipairs(entry.arms) do
+      if arm.valid then
+        arm.destroy()
+      end
+    end
     return
   end
-  storage.distributors[event.useful_id] = nil
-  for _, arm in ipairs(entry.arms) do
-    if arm.valid then
-      arm.destroy()
+  local gantry = storage.gantries[event.useful_id]
+  if gantry then
+    storage.gantries[event.useful_id] = nil
+    if gantry.bin.valid then
+      gantry.bin.destroy()
+    end
+    for _, rec in ipairs(gantry.loaders) do
+      if rec.entity.valid then
+        rec.entity.destroy()
+      end
     end
   end
 end)
@@ -322,7 +447,41 @@ end)
 -- salvaging their fuel into the primary's buffer.
 script.on_event(defines.events.on_player_rotated_entity, function(event)
   local entity = event.entity
-  if not (entity.valid and entity.name == DISTRIBUTOR) then
+  if not entity.valid then
+    return
+  end
+  if entity.name == GANTRY then
+    local entry = storage.gantries[entity.unit_number]
+    if entry then
+      -- Rebuild for the new axis, carrying the bin contents over.
+      for _, rec in ipairs(entry.loaders) do
+        if rec.entity.valid then
+          rec.entity.destroy()
+        end
+      end
+      local old_bin = entry.bin
+      entry.bin, entry.loaders = create_gantry_parts(entity)
+      if old_bin.valid then
+        local old_inventory = old_bin.get_inventory(defines.inventory.chest)
+        local new_inventory = entry.bin.get_inventory(defines.inventory.chest)
+        for i = 1, #old_inventory do
+          local stack = old_inventory[i]
+          if stack.valid_for_read then
+            local inserted = new_inventory.insert(stack)
+            if inserted < stack.count then
+              entity.surface.spill_item_stack({
+                position = entity.position,
+                stack = { name = stack.name, count = stack.count - inserted, quality = stack.quality },
+              })
+            end
+          end
+        end
+        old_bin.destroy()
+      end
+    end
+    return
+  end
+  if entity.name ~= DISTRIBUTOR then
     return
   end
   local entry = storage.distributors[entity.unit_number]
@@ -528,6 +687,7 @@ end)
 
 script.on_init(function()
   storage.distributors = {}
+  storage.gantries = {}
   storage.pending_builds = {}
   storage.highlight_players = {}
   storage.highlight_objects = {}
@@ -535,6 +695,7 @@ end)
 
 script.on_configuration_changed(function()
   storage.distributors = storage.distributors or {}
+  storage.gantries = storage.gantries or {}
   -- One-time cleanup of the retired hover-arrow renderings.
   if storage.selection_arrows then
     for _, arrows in pairs(storage.selection_arrows) do
