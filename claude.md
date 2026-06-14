@@ -14,13 +14,12 @@ A Factorio: Space Age mod adding a desert frontier planet. Mid-late game, positi
 
 **Pollution inverted.** Industrial pollution is a *defensive* substance: hunters cannot initiate combat within polluted territory. Pristine areas are hostile. Pollution disables condensers (water source), creating the tension that water infrastructure must extend into pristine hostile terrain. Hunters pursued into polluted territory keep fighting, then disengage when the engagement ends.
 
-**Terrain split.** Two terrain types govern emergence: *hard rock* (where the starter area lies) cannot spawn enemy emergences ever; *loose sand* (the more common terrain) can. This gives the planet readable geology — players see rock and know it's safe from ambush, see sand and know bands can spawn beneath them. The rail network of mature factories crosses sand to connect rocky industrial islands.
+**Terrain split.** Two terrain types govern emergence: *hard rock* (where the starter area lies) cannot spawn enemy emergences ever; *loose sand* (the more common terrain) can. This gives the planet readable geology — players see rock and know it's safe from ambush, see sand and know bands can spawn beneath them. The rail network of mature factories crosses sand to connect rocky industrial islands. Paving over sand prevents emergences as well.
 
 ## Resource model
 
 ### Surface scatter (hand-mined)
 - **Rocks**: stone + iron ore + small amount of solid fuel. Bootstrap material, sparse, exhaustible per starter area.
-- **Loose ferrous shale**: hand-mineable, triggers Pyromill research.
 
 ### Drillable patches
 - **Ferrous shale**: workhorse. Pyromill recipe: shale → iron ore + solid fuel.
