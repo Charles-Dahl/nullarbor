@@ -88,6 +88,14 @@ Used on Nullarbor as the source of water.
 ### Heavy Locomotive
 Armored locomotive built from uranium-steel alloy, with personal-style equipment grid. The grid takes vanilla equipment (shields, fuel-burning generators, weapons). Interleaving armored locomotives with cargo wagons distributes equipment grids along a consist, giving players a configurable mobile-fortress design space. The locomotive's alloy plating provides physical and explosion resistance.
 
+### Orbital Launcher
+Footprint: 3x3
+Energy: Fuel
+Alternative to the rocket silo, allows for exporting from nullarbor without needing ingredients for rocket parts. Made from uranium alloy.
+Works by firing cargo into orbit using a giant cannon rather than rockets. Fires significantly more often than rocket silo but carries significantly less cargo.
+Consumes enormous amounts of fuel per launch. Projectile is crafted from nullarbor agnostic materials so it can be used on other planets.
+Non-launchable by default. A late-game tech allows collapsing to a launchable item allowing export to other planets.
+
 ## Combat
 
 ### Bestiary
