@@ -39,12 +39,17 @@ data:extend({
     autoplace = {
       control = "rocks",
       order = "a[doodad]-a[rock]-a[huge]",
-      probability_expression = "multiplier * control * (region_box + rock_density - penalty)",
+      -- Denser than the original Nauvis-style placement and concentrated
+      -- around the cliffs: cliff_band peaks in the coastline elevation band
+      -- (cliffs form near elevation 80, again at 120), and scatter keeps a
+      -- sparser presence elsewhere. Tunable: multiplier (overall density),
+      -- the elevation band, and the scatter penalty.
+      probability_expression = "multiplier * control * (cliff_band + scatter)",
       local_expressions = {
-        multiplier = 0.07,
-        penalty = 1.7,
-        region_box = "range_select_base(moisture, 0.35, 1, 0.2, -10, 0)",
+        multiplier = 0.01,
         control = "control:rocks:size",
+        cliff_band = "range_select_base(elevation, 75, 150, 1, 0, 1)",
+        scatter = "max(0, rock_density - 1.4)",
       },
     },
     pictures = {

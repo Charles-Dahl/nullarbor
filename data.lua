@@ -28,6 +28,7 @@ require("prototypes.resources.ferrous-shale")
 require("prototypes.resources.cupric-shale")
 require("prototypes.resources.bauxite")
 require("prototypes.resources.irradiated-oil")
+require("prototypes.resources.nullarbor-resource-autoplace")
 
 -- Entities
 require("prototypes.entities.pyromill")
@@ -46,6 +47,7 @@ require("prototypes.technologies.gantry")
 require("prototypes.technologies.refining")
 require("prototypes.technologies.energetic-science-pack")
 require("prototypes.technologies.solid-fuel-to-coal")
+require("prototypes.technologies.planet-discovery-nullarbor")
 
 -- Recipes
 require("prototypes.recipes.pyromill")
@@ -59,3 +61,10 @@ require("prototypes.recipes.gantry")
 require("prototypes.recipes.refining")
 require("prototypes.recipes.chemical-processing")
 require("prototypes.recipes.energetic-science-pack")
+
+-- Tiles
+require("prototypes.tile.nullarbor-tiles")
+
+-- Planet
+require("prototypes.planet.nullarbor")
+require("prototypes.planet.space-connections")

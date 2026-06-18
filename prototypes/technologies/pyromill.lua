@@ -8,6 +8,7 @@ data:extend({
       type = "mine-entity",
       entity = "nullarbor-ferrous-shale",
     },
+    prerequisites = { "planet-discovery-nullarbor" },
     effects = {
       { type = "unlock-recipe", recipe = "nullarbor-pyromill" },
       { type = "unlock-recipe", recipe = "nullarbor-process-ferrous-shale" },
