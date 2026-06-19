@@ -40,7 +40,7 @@ A Factorio: Space Age mod adding a desert frontier planet. Mid-late game, positi
 ## Buildings
 
 ### Pyromill
-Footprint: 2x2
+Footprint: 2x3
 Energy: Fuel
 Furnace-like building that processes base materials into 2 outputs
 - Ferrous shale → iron ore + solid fuel

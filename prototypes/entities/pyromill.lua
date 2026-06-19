@@ -1,15 +1,23 @@
+-- Placeholder graphics: the Space Age crusher (also 2x3), tinted warm so it
+-- reads as a fiery furnace and is visually distinct from the real crusher.
+-- crusher-pictures defines its builder functions globally; require ensures
+-- they exist (space-age already loads it for the crusher itself).
+require("__space-age__.prototypes.entity.crusher-pictures")
+
+local pyro_tint = { r = 1.0, g = 0.6, b = 0.42 }
+local pyro_body = crusher_animation_vertical_main()
+pyro_body.tint = pyro_tint
+
 data:extend({
   {
     type = "furnace",
     name = "nullarbor-pyromill",
-    icon = "__base__/graphics/icons/stone-furnace.png",
+    icons = { { icon = "__space-age__/graphics/icons/crusher.png", icon_size = 64, tint = pyro_tint } },
     flags = { "placeable-neutral", "placeable-player", "player-creation" },
     minable = { mining_time = 0.2, result = "nullarbor-pyromill" },
-    fast_replaceable_group = "furnace",
-    next_upgrade = "steel-furnace",
-    max_health = 200,
-    corpse = "stone-furnace-remnants",
-    dying_explosion = "stone-furnace-explosion",
+    max_health = 350,
+    corpse = "crusher-remnants",
+    dying_explosion = "electric-furnace-explosion",
     allowed_effects = { "speed", "consumption", "pollution" },
     effect_receiver = { uses_module_effects = false, uses_beacon_effects = false, uses_surface_effects = true },
     impact_category = "stone",
@@ -28,8 +36,8 @@ data:extend({
         percent = 30,
       },
     },
-    collision_box = { { -0.7, -0.7 }, { 0.7, 0.7 } },
-    selection_box = { { -0.8, -1 }, { 0.8, 1 } },
+    collision_box = { { -0.7, -1.2 }, { 0.7, 1.2 } },
+    selection_box = { { -1, -1.5 }, { 1, 1.5 } },
     crafting_categories = { "nullarbor-pyromilling" },
     result_inventory_size = 2,
     energy_usage = "90kW",
@@ -60,82 +68,15 @@ data:extend({
     graphics_set = {
       animation = {
         layers = {
-          {
-            filename = "__base__/graphics/entity/stone-furnace/stone-furnace.png",
-            priority = "extra-high",
-            width = 151,
-            height = 146,
-            shift = util.by_pixel(-0.25, 6),
-            scale = 0.5,
-          },
-          {
-            filename = "__base__/graphics/entity/stone-furnace/stone-furnace-shadow.png",
-            priority = "extra-high",
-            width = 164,
-            height = 74,
-            draw_as_shadow = true,
-            shift = util.by_pixel(14.5, 13),
-            scale = 0.5,
-          },
+          pyro_body,
+          crusher_animation_vertical_shadow(),
         },
       },
       working_visualisations = {
         {
           fadeout = true,
-          effect = "flicker",
-          animation = {
-            layers = {
-              {
-                filename = "__base__/graphics/entity/stone-furnace/stone-furnace-fire.png",
-                priority = "extra-high",
-                line_length = 8,
-                width = 41,
-                height = 100,
-                frame_count = 48,
-                draw_as_glow = true,
-                shift = util.by_pixel(-0.75, 5.5),
-                scale = 0.5,
-              },
-              {
-                filename = "__base__/graphics/entity/stone-furnace/stone-furnace-light.png",
-                blend_mode = "additive",
-                width = 106,
-                height = 144,
-                repeat_count = 48,
-                draw_as_glow = true,
-                shift = util.by_pixel(0, 5),
-                scale = 0.5,
-              },
-            },
-          },
+          animation = crusher_working_visualisations_vertical(),
         },
-        {
-          fadeout = true,
-          effect = "flicker",
-          animation = {
-            filename = "__base__/graphics/entity/stone-furnace/stone-furnace-ground-light.png",
-            blend_mode = "additive",
-            width = 116,
-            height = 110,
-            repeat_count = 48,
-            draw_as_light = true,
-            shift = util.by_pixel(-1, 44),
-            scale = 0.5,
-          },
-        },
-      },
-      water_reflection = {
-        pictures = {
-          filename = "__base__/graphics/entity/stone-furnace/stone-furnace-reflection.png",
-          priority = "extra-high",
-          width = 16,
-          height = 16,
-          shift = util.by_pixel(0, 35),
-          variation_count = 1,
-          scale = 5,
-        },
-        rotate = false,
-        orientation_to_variation = false,
       },
     },
   },
