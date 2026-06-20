@@ -1,3 +1,5 @@
+local tints = require("prototypes.material-tints")
+
 data:extend({
   {
     type = "resource",
@@ -20,9 +22,10 @@ data:extend({
         height = 64,
         frame_count = 8,
         variation_count = 8,
+        tint = tints.grey,
       },
     },
     stage_counts = { 0 },
-    map_color = { r = 0.6, g = 0.3, b = 0.2 },
+    map_color = tints.grey_map,
   },
 })

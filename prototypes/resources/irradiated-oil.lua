@@ -1,4 +1,5 @@
 local tile_sounds = require("__base__/prototypes/tile/tile-sounds")
+local tints = require("prototypes.material-tints")
 
 data:extend({
   {
@@ -40,6 +41,7 @@ data:extend({
         scale = 0.5,
         variation_count = 1,
         frame_count = 4,
+        tint = tints.green,
       }),
     },
     draw_stateless_visualisation_under_building = false,
@@ -52,6 +54,7 @@ data:extend({
           scale = 0.5,
           frame_count = 32,
           animation_speed = 0.2,
+          tint = tints.green,
         }),
       },
       {
@@ -85,7 +88,7 @@ data:extend({
         },
       },
     },
-    map_color = { 0.78, 0.2, 0.77 },
+    map_color = tints.green_map,
     map_grid = false,
   },
 })
