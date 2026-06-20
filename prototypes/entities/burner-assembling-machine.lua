@@ -4,11 +4,15 @@ require("__base__/prototypes/entity/assemblerpipes")
 local hit_effects = require("__base__/prototypes/entity/hit-effects")
 local sounds = require("__base__/prototypes/entity/sounds")
 
+-- Placeholder tint: brass/amber, warm like the Pyromill (the burner-building
+-- family) but distinct from its orange so the two are easy to tell apart.
+local bam_tint = { r = 0.95, g = 0.78, b = 0.42 }
+
 data:extend({
   {
     type = "assembling-machine",
     name = "nullarbor-burner-assembling-machine",
-    icon = "__base__/graphics/icons/steel-furnace.png",
+    icons = { { icon = "__base__/graphics/icons/steel-furnace.png", icon_size = 64, tint = bam_tint } },
     flags = { "placeable-neutral", "placeable-player", "player-creation" },
     minable = { mining_time = 0.2, result = "nullarbor-burner-assembling-machine" },
     fast_replaceable_group = "furnace",
@@ -79,6 +83,7 @@ data:extend({
             height = 174,
             shift = util.by_pixel(-1.25, 2),
             scale = 0.5,
+            tint = bam_tint,
           },
           {
             filename = "__base__/graphics/entity/steel-furnace/steel-furnace-shadow.png",

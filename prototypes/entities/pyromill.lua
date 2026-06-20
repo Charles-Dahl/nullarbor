@@ -5,8 +5,13 @@
 require("__space-age__.prototypes.entity.crusher-pictures")
 
 local pyro_tint = { r = 1.0, g = 0.6, b = 0.42 }
-local pyro_body = crusher_animation_vertical_main()
-pyro_body.tint = pyro_tint
+-- Build a fresh tinted body animation per direction (each call returns its own
+-- table so the tint isn't shared/mutated across directions).
+local function tinted_body(build)
+  local a = build()
+  a.tint = pyro_tint
+  return a
+end
 
 data:extend({
   {
@@ -65,17 +70,22 @@ data:extend({
         },
       },
     },
+    -- Full 4-way graphics so the art rotates with the footprint (2x3 vertical
+    -- N/S, 3x2 horizontal E/W), mirroring the crusher.
     graphics_set = {
       animation = {
-        layers = {
-          pyro_body,
-          crusher_animation_vertical_shadow(),
-        },
+        north = { layers = { tinted_body(crusher_animation_vertical_main), crusher_animation_vertical_shadow() } },
+        east = { layers = { tinted_body(crusher_animation_horizontal_main), crusher_animation_horizontal_shadow() } },
+        south = { layers = { tinted_body(crusher_animation_vertical_main), crusher_animation_vertical_shadow() } },
+        west = { layers = { tinted_body(crusher_animation_horizontal_main), crusher_animation_horizontal_shadow() } },
       },
       working_visualisations = {
         {
           fadeout = true,
-          animation = crusher_working_visualisations_vertical(),
+          north_animation = crusher_working_visualisations_vertical(),
+          east_animation = crusher_working_visualisations_horizontal(),
+          south_animation = crusher_working_visualisations_vertical(),
+          west_animation = crusher_working_visualisations_horizontal(),
         },
       },
     },
