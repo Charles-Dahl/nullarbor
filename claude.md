@@ -62,7 +62,7 @@ Footprint: 1x1
 Energy: Fuel
 This is an upgrade to the vanilla burner inserter. It scales speed with the fuel used and can fuel itself from the machine it's taking from as well as belts
 
-### Distributor
+### Distributor (Deprecated)
 Footprint: 1x2
 Energy: Fuel
 Belt-straddling burner inserter cluster. Sits on a belt tile with a sealed pickup zone. Four drop targets, two per long side, landing one tile out from the footprint (long-inserter reach): feeds 2x2 machines hugging the belt (drop lands in their far column) or machines set one tile back; 1x1 machines must sit one tile back. Fuel priority: self > target buildings > pass-through for ingredient-handling roles. Vanilla filter-inserter logic. Solves the "many burner buildings need fuel" problem in dense layouts.
@@ -70,6 +70,20 @@ Belt-straddling burner inserter cluster. Sits on a belt tile with a sealed picku
 Fueling: deep fuel buffer (several slots), refuels itself natively from any fuel it handles, and accepts fuel inserted by hand or by inserter — so it stays useful on belts that never carry fuel; belt-borne fuel makes it fully autonomous. Implemented as a composite: one selectable primary inserter (full 1x2 selection box, higher selection priority than belts, custom collision layer so it overlaps belts but blocks other distributors) plus three hidden arm inserters managed by control.lua (lifecycle, filter sync from primary, fuel top-up from primary's buffer).
 
 Placement (train-stop model): must straddle a straight belt run lengthwise — both covered tiles need straight, same-direction belts parallel to the footprint axis; belt ghosts count. Manual placement (real or ghost) elsewhere is rejected with a cursor warning — no auto-snap, since the build preview can't show a snapped position (deliberate WYSIWYG decision). Successful builds normalize facing to the belt's flow (180° flip only; footprint and function identical). Holding the item highlights valid belt runs nearby. Bot/script builds are never rejected — a distributor whose underlay is missing or invalid (removed later, rotated, or belts not yet built) is disabled with a "Must be over belts" status and re-enables automatically, checked once per second.
+
+### Distributor Crane (Reimagined Distributor)
+Footprint: 1x2
+Energy: Fuel
+
+A heavy industrial crane that services a cluster of buildings within an area radius (~3-4 tiles), handling both input and output for everything in range from a single structure. Replaces the earlier 1x2 belt-straddling distributor concept, which proved fiddly in playtesting (fuel routing to the distributor was a hassle; the rigid belt-straddling feed pattern was too limiting).
+
+Core mechanic — round-robin servicing. The crane visits each building in its radius in turn. At each building it: (1) extracts everything it can from the building's output slots into its internal buffer, and (2) inserts any items from its buffer that match the building's current recipe ingredients. Then it moves to the next building. Continuous loop, no player configuration.
+
+Internal buffer. Recycler-style multi-slot inventory (the agricultural tower's seed/harvest split is the precedent). Holds the mixed working set — multiple input item types being distributed, plus multiple output types being collected. Mediates between belts and buildings: input belt → buffer → buildings → buffer → output belt. Notably the input buffer and output buffer must be distinct so it doesn't output it's input immediately. (Explore if the agricultural tower's setup works here, it outputs fruit and inputs seeds)
+
+Belt I/O — integrated loaders (critical). The crane has a dedicated input loader and output loader, positioned on one face (one to each side of the 3-wide edge, so belts approach from a single side). These connect directly to belts, with NO inserters needed. This is the load-bearing design requirement: without direct belt I/O, the crane would just relocate inserters (pull from buildings into its own inventory, then need an inserter to empty it) and achieve nothing. The integrated loaders are what let one crane eliminate all the per-building inserters in a cluster — that's its entire value proposition. Input loader fills the input buffer from a belt; output loader empties the output buffer to a belt.
+
+Implementation basis. The agricultural tower is the closest vanilla starting point — it already does area pickup with an internal multi-slot buffer. The adaptation: service buildings (read recipe, extract from output slots, insert into input slots) rather than harvest plants. Prototype the core loop early (crane reads a building's recipe, extracts its output, inserts a matching input) to validate feasibility — the building-servicing logic is custom work even with the ag tower foundation.
 
 ### Gantry
 Footprint: 6x4, fits over rails
