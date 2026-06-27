@@ -37,9 +37,9 @@ data:extend({
     },
     procession_graphic_catalogue = planet_catalogue_fulgora,
     surface_properties = {
-      ["day-night-cycle"] = 7 * minute,
+      ["day-night-cycle"] = 0, -- 0 = no cycle, permanently day (noon). Vanilla space platforms use this.
       ["magnetic-field"] = 5,
-      ["solar-power"] = 100,
+      ["solar-power"] = 500,
       pressure = 1000,
       gravity = 10,
     },
@@ -71,13 +71,9 @@ data:extend({
         shape_warp_weight = 0.4,
         detail_sample_morph_duration = 0,
       },
+      -- Day-night cycle is disabled (always noon), so only the 0.0 entry is ever used.
       day_night_cycle_color_lookup = {
         { 0.0, "__space-age__/graphics/lut/fulgora-1-noon.png" },
-        { 0.2, "__space-age__/graphics/lut/fulgora-1-noon.png" },
-        { 0.3, "__space-age__/graphics/lut/fulgora-2-afternoon.png" },
-        { 0.4, "__space-age__/graphics/lut/fulgora-3-after-sunset.png" },
-        { 0.6, "__space-age__/graphics/lut/fulgora-4-before-dawn.png" },
-        { 0.7, "__space-age__/graphics/lut/fulgora-5-morning.png" },
       },
       terrain_tint_effect = {
         noise_texture = {
