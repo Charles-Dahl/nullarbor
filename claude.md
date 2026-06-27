@@ -72,7 +72,7 @@ Fueling: deep fuel buffer (several slots), refuels itself natively from any fuel
 Placement (train-stop model): must straddle a straight belt run lengthwise — both covered tiles need straight, same-direction belts parallel to the footprint axis; belt ghosts count. Manual placement (real or ghost) elsewhere is rejected with a cursor warning — no auto-snap, since the build preview can't show a snapped position (deliberate WYSIWYG decision). Successful builds normalize facing to the belt's flow (180° flip only; footprint and function identical). Holding the item highlights valid belt runs nearby. Bot/script builds are never rejected — a distributor whose underlay is missing or invalid (removed later, rotated, or belts not yet built) is disabled with a "Must be over belts" status and re-enables automatically, checked once per second.
 
 ### Distributor Crane (Reimagined Distributor)
-Footprint: 1x2
+Footprint: 3x3
 Energy: Fuel
 
 A heavy industrial crane that services a cluster of buildings within an area radius (~3-4 tiles), handling both input and output for everything in range from a single structure. Replaces the earlier 1x2 belt-straddling distributor concept, which proved fiddly in playtesting (fuel routing to the distributor was a hassle; the rigid belt-straddling feed pattern was too limiting).

@@ -12,7 +12,7 @@ data:extend({
     results = {
       { type = "item", name = "nullarbor-distributor-crane", amount = 1 },
     },
-    -- Enabled for the prototype spike; gate behind tech once validated.
-    enabled = true,
+    -- Unlocked by the nullarbor-distributor-crane technology.
+    enabled = false,
   },
 })
