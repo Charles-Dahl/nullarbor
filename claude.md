@@ -161,7 +161,6 @@ Pilbara red desert + Wild West / late-1800s industrial-frontier aesthetic. Build
 
 ## Known open design questions
 
-- **Specific Pyromill crafting recipe ingredients balance**: currently steel furnace + steel + stone, ratios placeholder.
 - **Exact refinery output ratios** (heavy oil vs. uranium fluid): placeholder, needs balancing.
 - **Combustion mastery exact cost curve and effect magnitude**: placeholder, needs balancing.
 - **Hunter AI behavior in pollution**: pursued into pollution, disengage when threat ends — exact thresholds TBD.

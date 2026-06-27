@@ -38,6 +38,7 @@ require("prototypes.entities.burner-inserter-mk2")
 require("prototypes.entities.distributor-crane")
 require("prototypes.entities.gantry")
 require("prototypes.entities.surface-rock")
+require("prototypes.entities.bestiary")
 
 -- Technologies
 require("prototypes.technologies.pyromill")

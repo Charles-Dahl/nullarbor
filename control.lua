@@ -21,6 +21,25 @@ local CRANE_RADIUS = 4
 -- (ingredients and burner fuel). Placeholder value, needs balancing.
 local CRANE_INPUT_TARGET = 10
 
+-- Bestiary morphing. When a swarmer engages (a hostile target comes within
+-- MORPH_ENGAGE_RANGE), it rolls once: a chance to morph into a bruiser or
+-- exploder, otherwise it stays a swarmer. Only swarmers roll. Placeholder
+-- chances, need balancing.
+local SWARMER = "nullarbor-swarmer"
+local BRUISER = "nullarbor-bruiser"
+local EXPLODER = "nullarbor-exploder"
+local MORPHING_BRUISER = "nullarbor-morphing-bruiser"
+local MORPHING_EXPLODER = "nullarbor-morphing-exploder"
+local MORPH_ENGAGE_RANGE = 16 -- a hostile target this close = "engaged"
+local MORPH_SCAN_RADIUS = 64 -- only evaluate swarmers near a player (bounds cost)
+local MORPH_CHANCE_BRUISER = 0.20
+local MORPH_CHANCE_EXPLODER = 0.20
+-- Windup the intermediate spends before completing into its final form.
+-- Bruiser morph is fast, exploder morph slow (CLAUDE.md). Killing the
+-- intermediate before this elapses cancels the morph.
+local BRUISER_MORPH_TICKS = 90 -- 1.5s
+local EXPLODER_MORPH_TICKS = 300 -- 5s
+
 -- 90° counter-clockwise of each direction: the "left" side of the facing axis.
 local LEFT_OF = {
   [defines.direction.north] = defines.direction.west,
@@ -466,6 +485,16 @@ script.on_event(defines.events.on_object_destroyed, function(event)
         part.destroy()
       end
     end
+    return
+  end
+  -- A resolved swarmer died or morphed: drop its tracking entry.
+  if storage.morphs[event.useful_id] then
+    storage.morphs[event.useful_id] = nil
+  end
+  -- An intermediate died (killed mid-windup, or completed by us): cancel any
+  -- pending completion so it isn't finalised after death.
+  if storage.morphing[event.useful_id] then
+    storage.morphing[event.useful_id] = nil
   end
 end)
 
@@ -506,18 +535,113 @@ script.on_event(defines.events.on_player_rotated_entity, function(event)
   end
 end)
 
+-- ========================= bestiary morphing =========================
+
+-- Each morph outcome: the intermediate the swarmer becomes immediately, the
+-- final form it completes into, and the windup between them.
+local MORPH_TARGETS = {
+  bruiser = { intermediate = MORPHING_BRUISER, final = BRUISER, ticks = BRUISER_MORPH_TICKS },
+  exploder = { intermediate = MORPHING_EXPLODER, final = EXPLODER, ticks = EXPLODER_MORPH_TICKS },
+}
+
+-- Begin a morph: the swarmer becomes its intermediate form now; control
+-- completes it to the final form after the windup. The intermediate is a
+-- normal killable unit -- destroying it before completion cancels the morph,
+-- which is the player's reaction-window reward. Tracked by the intermediate's
+-- unit_number in storage.morphing.
+local function begin_morph(swarmer, spec)
+  local intermediate = swarmer.surface.create_entity({
+    name = spec.intermediate,
+    position = swarmer.position,
+    force = swarmer.force,
+  })
+  swarmer.destroy()
+  if intermediate then
+    storage.morphing[intermediate.unit_number] = {
+      entity = intermediate,
+      final = spec.final,
+      complete_tick = game.tick + spec.ticks,
+    }
+    script.register_on_object_destroyed(intermediate)
+  end
+end
+
+-- Complete due morphs: replace each finished intermediate with its final form.
+-- Clearing the storage entry before destroying the intermediate keeps the
+-- on_object_destroyed cleanup a no-op for our own removal. A distinct period
+-- from the other timers so none overwrites another.
+script.on_nth_tick(10, function()
+  local now = game.tick
+  for id, m in pairs(storage.morphing) do
+    if now >= m.complete_tick then
+      storage.morphing[id] = nil
+      if m.entity.valid then
+        m.entity.surface.create_entity({
+          name = m.final,
+          position = m.entity.position,
+          force = m.entity.force,
+        })
+        m.entity.destroy()
+      end
+    end
+  end
+end)
+
+-- Engagement poll. Bounded to swarmers near connected players (the only
+-- targets that exist pre-emergence); each swarmer is evaluated at most once,
+-- tracked by unit_number in storage.morphs. A distinct period from the crane
+-- GUI's on_nth_tick(15) so neither overwrites the other.
+script.on_nth_tick(20, function()
+  local resolved = storage.morphs
+  for _, player in pairs(game.connected_players) do
+    local surface = player.surface
+    local swarmers = surface.find_entities_filtered({
+      name = SWARMER,
+      position = player.position,
+      radius = MORPH_SCAN_RADIUS,
+    })
+    for _, swarmer in pairs(swarmers) do
+      local id = swarmer.unit_number
+      if not resolved[id] then
+        -- "Engaged" = a hostile (player-force) target is within range.
+        local target = surface.find_nearest_enemy({
+          position = swarmer.position,
+          max_distance = MORPH_ENGAGE_RANGE,
+          force = swarmer.force,
+        })
+        if target then
+          resolved[id] = true
+          -- Registered so the resolved entry is cleaned up on death/morph.
+          script.register_on_object_destroyed(swarmer)
+          local roll = math.random()
+          if roll < MORPH_CHANCE_BRUISER then
+            begin_morph(swarmer, MORPH_TARGETS.bruiser)
+          elseif roll < MORPH_CHANCE_BRUISER + MORPH_CHANCE_EXPLODER then
+            begin_morph(swarmer, MORPH_TARGETS.exploder)
+          end
+          -- else: stays a swarmer; resolved so it never re-rolls.
+        end
+      end
+    end
+  end
+end)
+
 -- ========================= init =========================
 
 script.on_init(function()
   storage.gantries = {}
   storage.cranes = {}
   storage.crane_guis = {}
+  storage.morphs = {}
+  storage.morphing = {}
 end)
 
 script.on_configuration_changed(function()
   storage.gantries = storage.gantries or {}
   storage.cranes = storage.cranes or {}
   storage.crane_guis = storage.crane_guis or {}
+  storage.morphs = storage.morphs or {}
+  storage.morphing = storage.morphing or {}
   -- Drop retired storage from the removed belt-straddling distributor.
   storage.distributors = nil
   storage.pending_builds = nil
