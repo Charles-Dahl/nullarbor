@@ -7,6 +7,11 @@
 --     crafting machine in a radius -- collecting outputs and distributing
 --     ingredients/fuel -- and exposes both bins through a custom GUI.
 
+-- Forward declaration: appends a solar panel to storage.solar_panels for the
+-- pollution-tiering pass. Assigned in the pollution-effects section; hoisted
+-- here so the shared build dispatcher (below) can reference it as an upvalue.
+local register_solar_panel
+
 local GANTRY = "nullarbor-gantry"
 local GANTRY_LOADER = "nullarbor-gantry-loader"
 local GANTRY_BIN_NS = "nullarbor-gantry-bin-ns"
@@ -449,12 +454,15 @@ local function on_built(event)
     on_gantry_built(entity)
   elseif entity.name == CRANE then
     on_crane_built(entity)
+  elseif entity.type == "solar-panel" and entity.surface.name == "nullarbor" then
+    register_solar_panel(entity)
   end
 end
 
 local build_filter = {
   { filter = "name", name = GANTRY },
   { filter = "name", name = CRANE },
+  { filter = "type", type = "solar-panel" },
 }
 script.on_event(defines.events.on_built_entity, on_built, build_filter)
 script.on_event(defines.events.on_robot_built_entity, on_built, build_filter)
@@ -666,6 +674,114 @@ script.on_nth_tick(60, function()
   end
 end)
 
+-- ---- solar tiering ----
+-- Nullarbor is permanent-day, so solar carries the base load -- but local
+-- pollution throttles it. Each panel is fast-replaced between the vanilla panel
+-- and two reduced-production clones by the pollution over its chunk. Panels are
+-- tracked in storage.solar_panels (an array of entity refs) populated on build
+-- and seeded once on config change; the periodic pass compacts out invalids.
+local SOLAR_MILD = "nullarbor-solar-panel-mild-smog"
+local SOLAR_HEAVY = "nullarbor-solar-panel-heavy-smog"
+local SOLAR_BASE = "solar-panel"
+-- Per-chunk pollution boundaries between tiers, with hysteresis: a panel rises
+-- a tier at the UP threshold but only falls back once pollution drops under the
+-- lower DOWN threshold, so a chunk hovering on a boundary doesn't flip every
+-- pass. DOWN < UP for each pair. Placeholders, need balancing.
+local SOLAR_MILD_UP = 15
+local SOLAR_MILD_DOWN = 10
+local SOLAR_HEAVY_UP = 40
+local SOLAR_HEAVY_DOWN = 33
+
+-- Resolve the tier a panel should be at, given its current tier (its name) and
+-- the pollution over its chunk. Clear up/down cases fire first; in the gaps the
+-- panel holds its current tier (that hold IS the hysteresis). Big jumps across
+-- two tiers are allowed (e.g. a pollution spike takes base straight to heavy).
+local function resolve_solar_name(current, pollution)
+  if pollution >= SOLAR_HEAVY_UP then
+    return SOLAR_HEAVY
+  elseif pollution < SOLAR_MILD_DOWN then
+    return SOLAR_BASE
+  elseif current == SOLAR_HEAVY then
+    return pollution < SOLAR_HEAVY_DOWN and SOLAR_MILD or SOLAR_HEAVY
+  elseif current == SOLAR_BASE then
+    return pollution >= SOLAR_MILD_UP and SOLAR_MILD or SOLAR_BASE
+  end
+  -- current == SOLAR_MILD, pollution in [MILD_DOWN, HEAVY_UP): hold at mild.
+  return SOLAR_MILD
+end
+
+-- Fast-replace a panel with its tier variant, carrying position/quality/health
+-- over. fast_replace swaps atomically (no power gap) and avoids self-collision;
+-- panels aren't circuit-connected, so nothing else needs preserving. Returns
+-- the surviving entity (the new one, or the original if creation failed).
+local function swap_solar(panel, desired_name)
+  local health = panel.health
+  local created = panel.surface.create_entity({
+    name = desired_name,
+    position = panel.position,
+    direction = panel.direction,
+    force = panel.force,
+    quality = panel.quality,
+    fast_replace = true,
+    spill = false,
+    create_build_effect_smoke = false,
+  })
+  if not created then
+    return panel
+  end
+  created.health = health
+  return created
+end
+
+-- Assigned to the forward-declared upvalue so the shared build dispatcher can
+-- register panels into our array.
+register_solar_panel = function(entity)
+  storage.solar_panels[#storage.solar_panels + 1] = entity
+end
+
+-- Rebuild the registry from a fresh surface scan (existing saves, or a panel
+-- placed before this feature existed). Idempotent.
+local function seed_solar_registry()
+  storage.solar_panels = {}
+  local surface = game.surfaces[NULLARBOR]
+  if not surface then
+    return
+  end
+  for _, panel in pairs(surface.find_entities_filtered({ type = "solar-panel" })) do
+    storage.solar_panels[#storage.solar_panels + 1] = panel
+  end
+end
+
+-- Re-tier every tracked panel. Pollution drifts slowly, so a 2s cadence is
+-- ample; pollution is sampled once per chunk and cached across the pass.
+script.on_nth_tick(120, function()
+  local surface = game.surfaces[NULLARBOR]
+  if not surface then
+    return
+  end
+  local panels = storage.solar_panels
+  local kept = {}
+  local pollution_by_chunk = {}
+  for i = 1, #panels do
+    local panel = panels[i]
+    if panel.valid then
+      local pos = panel.position
+      local key = math.floor(pos.x / 32) .. ":" .. math.floor(pos.y / 32)
+      local pollution = pollution_by_chunk[key]
+      if not pollution then
+        pollution = surface.get_pollution(pos)
+        pollution_by_chunk[key] = pollution
+      end
+      local desired = resolve_solar_name(panel.name, pollution)
+      if panel.name ~= desired then
+        panel = swap_solar(panel, desired)
+      end
+      kept[#kept + 1] = panel
+    end
+  end
+  storage.solar_panels = kept
+end)
+
 -- ========================= init =========================
 
 script.on_init(function()
@@ -674,6 +790,7 @@ script.on_init(function()
   storage.crane_guis = {}
   storage.morphs = {}
   storage.morphing = {}
+  storage.solar_panels = {}
 end)
 
 script.on_configuration_changed(function()
@@ -682,6 +799,9 @@ script.on_configuration_changed(function()
   storage.crane_guis = storage.crane_guis or {}
   storage.morphs = storage.morphs or {}
   storage.morphing = storage.morphing or {}
+  -- Rebuild the solar registry from a surface scan so panels placed before this
+  -- feature (or in an existing save) are picked up.
+  seed_solar_registry()
   -- Drop retired storage from the removed belt-straddling distributor.
   storage.distributors = nil
   storage.pending_builds = nil
