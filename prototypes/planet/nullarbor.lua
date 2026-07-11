@@ -25,7 +25,14 @@ data:extend({
     order = "c[nullarbor]",
     subgroup = "planets",
     map_gen_settings = nullarbor_map_gen.nullarbor(),
-    pollutant_type = nil,
+    -- Nauvis-style pollution. Reuses the vanilla "pollution" airborne-pollutant:
+    -- the mod's burner buildings already emit { pollution = X } and the
+    -- Fulgora-derived tiles already carry pollution absorption, so accumulation
+    -- and dissipation match Nauvis with no further wiring. Sharing the type also
+    -- means Nullarbor buildings keep polluting on Nauvis and other pollution
+    -- planets. Pollution's per-surface effects (condenser disable, solar tiering,
+    -- enemy avoidance) live in control.lua, gated on the nullarbor surface.
+    pollutant_type = "pollution",
     solar_power_in_space = 200,
     platform_procession_set = {
       arrival = { "planet-to-platform-b" },

@@ -626,6 +626,46 @@ script.on_nth_tick(20, function()
   end
 end)
 
+-- ========================= pollution effects =========================
+
+-- Nullarbor's pollution ("smog") is a defensive substance the player cultivates,
+-- but it has industrial costs, applied per-surface here so Nauvis is untouched.
+-- Pollution is stored per 32x32 chunk, so get_pollution(position) is a
+-- chunk-granular sample -- fine, that's the resolution the design calls for.
+local NULLARBOR = "nullarbor"
+local CONDENSER = "nullarbor-condenser"
+-- Per-chunk pollution at or above which a condenser stalls completely (design:
+-- "pollution disables condensers", forcing water infrastructure into pristine
+-- terrain). Placeholder, needs balancing.
+local CONDENSER_POLLUTION_CUTOFF = 15
+
+-- Shown in the condenser's GUI (red diode + reason) while pollution has stalled
+-- it, instead of the bare engine "Disabled" that active=false gives on its own.
+local CONDENSER_SMOG_STATUS = {
+  diode = defines.entity_status_diode.red,
+  label = { "nullarbor.condenser-smog-disabled" },
+}
+
+-- Toggle every Nullarbor condenser on/off by the pollution over its chunk.
+-- A disabled condenser stops crafting (and, consuming no power, stops emitting),
+-- re-enabling automatically once its chunk clears. Scans by name once a second;
+-- condensers are few and pollution drifts slowly, so a periodic scan is cheap
+-- enough without a registry. Only writes on a state change so the custom status
+-- (and its GUI) don't churn every cycle.
+script.on_nth_tick(60, function()
+  local surface = game.surfaces[NULLARBOR]
+  if not surface then
+    return
+  end
+  for _, condenser in pairs(surface.find_entities_filtered({ name = CONDENSER })) do
+    local should_run = surface.get_pollution(condenser.position) < CONDENSER_POLLUTION_CUTOFF
+    if should_run ~= condenser.active then
+      condenser.active = should_run
+      condenser.custom_status = should_run and nil or CONDENSER_SMOG_STATUS
+    end
+  end
+end)
+
 -- ========================= init =========================
 
 script.on_init(function()
