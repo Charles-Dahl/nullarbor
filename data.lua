@@ -40,6 +40,7 @@ require("prototypes.entities.gantry")
 require("prototypes.entities.surface-rock")
 require("prototypes.entities.bestiary")
 require("prototypes.entities.solar-panel-variants")
+require("prototypes.entities.emergence-marker")
 
 -- Technologies
 require("prototypes.technologies.pyromill")

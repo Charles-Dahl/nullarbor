@@ -12,6 +12,11 @@
 -- here so the shared build dispatcher (below) can reference it as an upvalue.
 local register_solar_panel
 
+-- Forward declaration: enrolls a hunter in storage.hunters for surface-life
+-- decay. Assigned in the emergence section; hoisted so the morph completion
+-- handler (below) can register the bruisers/exploders it creates.
+local register_hunter
+
 local GANTRY = "nullarbor-gantry"
 local GANTRY_LOADER = "nullarbor-gantry-loader"
 local GANTRY_BIN_NS = "nullarbor-gantry-bin-ns"
@@ -584,11 +589,14 @@ script.on_nth_tick(10, function()
     if now >= m.complete_tick then
       storage.morphing[id] = nil
       if m.entity.valid then
-        m.entity.surface.create_entity({
+        local final = m.entity.surface.create_entity({
           name = m.final,
           position = m.entity.position,
           force = m.entity.force,
         })
+        if final then
+          register_hunter(final)
+        end
         m.entity.destroy()
       end
     end
@@ -782,6 +790,251 @@ script.on_nth_tick(120, function()
   storage.solar_panels = kept
 end)
 
+-- ========================= emergence =========================
+
+-- Hunter bands emerge from telegraphed sites in pristine loose sand. A site must
+-- be a "nullarbor-sand" tile -- which rejects rock AND paving in one test, since
+-- both report a different tile name -- and its chunk must be near-pristine. A
+-- tremor marker (which also anchors a native custom alert) warns the player for
+-- PRECURSOR_TICKS, then the band spawns and marches to the nearest pollution
+-- boundary; the engine handles group cohesion/pathing natively.
+--
+-- Cadence escalates with time since the player first arrived: a grace window of
+-- calm, then emergences ramp from rare/small to frequent/large over the ramp
+-- period. Pollution-gated site selection means this pressures expansion into
+-- pristine sand while a smoggy base stays self-protecting. (Uranium extracted is
+-- the intended second escalation input; time-only for now.)
+local TREMOR = "nullarbor-emergence-tremor"
+local EMERGENCE_SAND = "nullarbor-sand"
+local EMERGENCE_CHECK_PERIOD = 90 -- director cadence (ticks)
+local EMERGENCE_GRACE = 8 * 60 * 60 -- calm window after arrival (placeholder)
+local EMERGENCE_RAMP = 45 * 60 * 60 -- time from grace-end to full intensity
+local EMERGENCE_INTERVAL_MAX = 5 * 60 * 60 -- gap between emergences at e=0
+local EMERGENCE_INTERVAL_MIN = 40 * 60 -- gap at e=1
+local EMERGENCE_MAX_ACTIVE = 3 -- concurrent telegraphed sites (per-region caps TBD)
+local PRECURSOR_TICKS = 8 * 60 -- telegraph warning window
+local EMERGENCE_MIN_DIST = 32 -- ring around the player to site within
+local EMERGENCE_MAX_DIST = 80
+local EMERGENCE_SITE_ATTEMPTS = 12 -- random probes before giving up this cycle
+local EMERGENCE_POLLUTION_MAX = 5 -- site chunk must be under this pollution
+local BAND_MIN = 4 -- swarmers per band at e=0 (morphing escalates them)
+local BAND_MAX = 12 -- at e=1
+local EMERGENCE_SPREAD = 3 -- band scatter radius
+local BOUNDARY_THRESHOLD = 20 -- chunk pollution counted as "the cloud"
+local BOUNDARY_SEARCH_CHUNKS = 5 -- how far out to look for the boundary
+local ALERT_ICON = { type = "virtual", name = "signal-red" }
+
+-- Surface-life decay: emerged hunters lose a fraction of their max health each
+-- period and are removed at the floor -- the population governor (steady-state
+-- count ~ band_size * lifespan / interval). Percentage-of-max gives every unit
+-- type a similar lifespan despite very different HP pools. Removal is a quiet
+-- destroy(), not damage()/die(), so a decaying exploder never triggers its AOE.
+local DECAY_PERIOD = 45 -- ticks (unique among the on_nth_tick periods)
+local DECAY_FRACTION = 0.01 -- of max health per period (~1.3%/s -> ~75s lifespan)
+
+-- Escalation in [0,1], or -1 while still in the post-arrival grace window.
+local function emergence_escalation()
+  local start = storage.nullarbor_start_tick
+  if not start then
+    return -1
+  end
+  local past = game.tick - start - EMERGENCE_GRACE
+  if past <= 0 then
+    return -1
+  end
+  return math.min(1, past / EMERGENCE_RAMP)
+end
+
+local function lerp(a, b, t)
+  return a + (b - a) * t
+end
+
+-- Every connected player standing on the surface (the alert/site audience).
+local function players_on(surface)
+  local list = {}
+  for _, player in pairs(game.connected_players) do
+    if player.surface == surface and player.character then
+      list[#list + 1] = player
+    end
+  end
+  return list
+end
+
+-- Probe random points in a ring around the origin for a valid, near-pristine
+-- sand tile. Tiles are sampled at their centre (+0.5).
+local function find_emergence_site(surface, origin)
+  for _ = 1, EMERGENCE_SITE_ATTEMPTS do
+    local angle = math.random() * 2 * math.pi
+    local dist = EMERGENCE_MIN_DIST + math.random() * (EMERGENCE_MAX_DIST - EMERGENCE_MIN_DIST)
+    local pos = {
+      x = math.floor(origin.x + math.cos(angle) * dist) + 0.5,
+      y = math.floor(origin.y + math.sin(angle) * dist) + 0.5,
+    }
+    if surface.get_tile(pos.x, pos.y).name == EMERGENCE_SAND and surface.get_pollution(pos) < EMERGENCE_POLLUTION_MAX then
+      return pos
+    end
+  end
+  return nil
+end
+
+-- Attack-pattern B target: the nearest point on the pollution boundary. Scans
+-- chunk centres outward for the closest polluted chunk, then pulls the target
+-- back toward the site by half a chunk so the band halts at the cloud's edge
+-- (loitering at the frontier) rather than marching into it. nil if no pollution
+-- is within range -- the band then just wanders until it decays or finds prey.
+local function nearest_boundary_point(surface, site)
+  local scx, scy = math.floor(site.x / 32), math.floor(site.y / 32)
+  local best, best_d2
+  for dcx = -BOUNDARY_SEARCH_CHUNKS, BOUNDARY_SEARCH_CHUNKS do
+    for dcy = -BOUNDARY_SEARCH_CHUNKS, BOUNDARY_SEARCH_CHUNKS do
+      local center = { x = (scx + dcx) * 32 + 16, y = (scy + dcy) * 32 + 16 }
+      if surface.get_pollution(center) >= BOUNDARY_THRESHOLD then
+        local dx, dy = center.x - site.x, center.y - site.y
+        local d2 = dx * dx + dy * dy
+        if not best_d2 or d2 < best_d2 then
+          best, best_d2 = center, d2
+        end
+      end
+    end
+  end
+  if not best then
+    return nil
+  end
+  local dx, dy = site.x - best.x, site.y - best.y
+  local len = math.sqrt(dx * dx + dy * dy)
+  if len < 1 then
+    return best
+  end
+  return { x = best.x + dx / len * 16, y = best.y + dy / len * 16 }
+end
+
+-- Spawn the tremor marker and register the pending emergence. The marker anchors
+-- the native alert and is the world telegraph; it is destroyed on fire.
+local function start_emergence(surface, pos, band_size)
+  local marker = surface.create_entity({ name = TREMOR, position = pos, force = "neutral" })
+  if marker then
+    marker.destructible = false
+  end
+  storage.emergences[#storage.emergences + 1] = {
+    marker = marker,
+    position = pos,
+    fire_tick = game.tick + PRECURSOR_TICKS,
+    band_size = band_size,
+  }
+end
+
+-- (Re)assert the custom alert on each player; custom alerts fade if not
+-- refreshed, so the director re-adds them each cycle. Cleared when the marker is
+-- destroyed at fire.
+local function refresh_alert(entry, players)
+  if not (entry.marker and entry.marker.valid) then
+    return
+  end
+  for _, player in pairs(players) do
+    player.add_custom_alert(entry.marker, ALERT_ICON, { "nullarbor.emergence-warning" }, true)
+  end
+end
+
+-- Spawn the band, enrol each unit in the decay registry, and send the group to
+-- the nearest pollution boundary. The marker is destroyed here (clearing the
+-- alert).
+local function fire_emergence(surface, entry)
+  local units = {}
+  for _ = 1, entry.band_size do
+    local p = surface.find_non_colliding_position(SWARMER, entry.position, EMERGENCE_SPREAD + 2, 0.5)
+    if p then
+      local unit = surface.create_entity({ name = SWARMER, position = p, force = "enemy" })
+      if unit then
+        units[#units + 1] = unit
+        register_hunter(unit)
+      end
+    end
+  end
+  if #units > 0 then
+    local group = surface.create_unit_group({ position = entry.position, force = "enemy" })
+    for _, unit in pairs(units) do
+      group.add_member(unit)
+    end
+    local target = nearest_boundary_point(surface, entry.position)
+    if target then
+      group.set_command({
+        type = defines.command.attack_area,
+        destination = target,
+        radius = 16,
+        distraction = defines.distraction.by_enemy,
+      })
+    else
+      group.set_command({ type = defines.command.wander, radius = 12, ticks_to_wait = 300 })
+    end
+  end
+  if entry.marker and entry.marker.valid then
+    entry.marker.destroy()
+  end
+end
+
+-- Decay pass: trim each live hunter's health, quietly remove the spent ones, and
+-- compact the registry (which also prunes any that died elsewhere).
+register_hunter = function(entity)
+  storage.hunters[#storage.hunters + 1] = entity
+end
+
+script.on_nth_tick(DECAY_PERIOD, function()
+  local hunters = storage.hunters
+  local kept = {}
+  for i = 1, #hunters do
+    local hunter = hunters[i]
+    if hunter.valid then
+      local loss = hunter.prototype.max_health * DECAY_FRACTION
+      if hunter.health <= loss then
+        hunter.destroy()
+      else
+        hunter.health = hunter.health - loss
+        kept[#kept + 1] = hunter
+      end
+    end
+  end
+  storage.hunters = kept
+end)
+
+script.on_nth_tick(EMERGENCE_CHECK_PERIOD, function()
+  local surface = game.surfaces[NULLARBOR]
+  if not surface then
+    return
+  end
+  local players = players_on(surface)
+  if #players == 0 then
+    return
+  end
+  local now = game.tick
+  -- Start the arrival clock the first time a player is present on Nullarbor.
+  if not storage.nullarbor_start_tick then
+    storage.nullarbor_start_tick = now
+  end
+  -- Fire due precursors; refresh the alert on the rest.
+  local pending = {}
+  for _, entry in pairs(storage.emergences) do
+    if now >= entry.fire_tick then
+      fire_emergence(surface, entry)
+    else
+      refresh_alert(entry, players)
+      pending[#pending + 1] = entry
+    end
+  end
+  storage.emergences = pending
+  -- Start a new emergence if past the grace window, cadence, and cap.
+  local e = emergence_escalation()
+  if e >= 0 and now >= storage.next_emergence_tick and #storage.emergences < EMERGENCE_MAX_ACTIVE then
+    local site = find_emergence_site(surface, players[math.random(#players)].position)
+    if site then
+      start_emergence(surface, site, math.floor(lerp(BAND_MIN, BAND_MAX, e) + 0.5))
+      storage.next_emergence_tick = now + lerp(EMERGENCE_INTERVAL_MAX, EMERGENCE_INTERVAL_MIN, e)
+      for _, player in pairs(players) do
+        player.play_sound({ path = "utility/new_objective" })
+      end
+    end
+  end
+end)
+
 -- ========================= init =========================
 
 script.on_init(function()
@@ -791,6 +1044,9 @@ script.on_init(function()
   storage.morphs = {}
   storage.morphing = {}
   storage.solar_panels = {}
+  storage.emergences = {}
+  storage.next_emergence_tick = 0
+  storage.hunters = {}
 end)
 
 script.on_configuration_changed(function()
@@ -799,6 +1055,9 @@ script.on_configuration_changed(function()
   storage.crane_guis = storage.crane_guis or {}
   storage.morphs = storage.morphs or {}
   storage.morphing = storage.morphing or {}
+  storage.emergences = storage.emergences or {}
+  storage.next_emergence_tick = storage.next_emergence_tick or 0
+  storage.hunters = storage.hunters or {}
   -- Rebuild the solar registry from a surface scan so panels placed before this
   -- feature (or in an existing save) are picked up.
   seed_solar_registry()
