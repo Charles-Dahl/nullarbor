@@ -1116,8 +1116,10 @@ script.on_nth_tick(EMERGENCE_CHECK_PERIOD, function()
     if site then
       start_emergence(surface, site, math.floor(lerp(BAND_MIN, BAND_MAX, e) + 0.5))
       storage.next_emergence_tick = now + lerp(EMERGENCE_INTERVAL_MAX, EMERGENCE_INTERVAL_MIN, e)
+      -- Warning klaxon on telegraph (alert_destroyed is the alarm-toned utility
+      -- sound; the punchy silo/speaker klaxons aren't reachable via play_sound).
       for _, player in pairs(players) do
-        player.play_sound({ path = "utility/new_objective" })
+        player.play_sound({ path = "utility/alert_destroyed" })
       end
     end
   end
