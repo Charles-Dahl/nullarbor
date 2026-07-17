@@ -165,4 +165,5 @@ Pilbara red desert + Wild West / late-1800s industrial-frontier aesthetic. Build
 - **Combustion mastery exact cost curve and effect magnitude**: placeholder, needs balancing.
 - **Hunter AI behavior in pollution**: pursued into pollution, disengage when threat ends — exact thresholds TBD.
 - **Emergence telegraph timing and per-region caps**: placeholders pending playtesting.
+- **Emergence siting**: sites are the *nearest pristine sand chunk* to the player, found by an outward chunk-ring search (`find_emergence_site`), so they scale with cloud size instead of a fixed ring. `EMERGENCE_SEARCH_CHUNKS` is only a safety cap on the search, not a design distance; revisit if bands ever feel like they spawn too far out.
 - **Bauxite map placement**: small deposits near starter rocky area, larger deposits further out, but exact spawning logic TBD.

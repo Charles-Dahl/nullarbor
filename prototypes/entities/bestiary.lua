@@ -38,6 +38,10 @@ swarmer.icon = "__base__/graphics/icons/small-spitter.png"
 swarmer.icon_size = 64
 swarmer.factoriopedia_simulation = nil
 swarmer.max_health = 50
+-- No regen: small-spitter's inherited 0.01/tick healing nearly cancels the
+-- surface-life decay (0.5 HP/45t here), stretching lifespan to ~12 min. Zeroing
+-- it restores the intended ~75s decay lifespan.
+swarmer.healing_per_tick = 0
 swarmer.movement_speed = 0.24
 swarmer.distance_per_frame = 0.06
 swarmer.resistances = {}

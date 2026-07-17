@@ -805,21 +805,30 @@ end)
 -- pristine sand while a smoggy base stays self-protecting. (Uranium extracted is
 -- the intended second escalation input; time-only for now.)
 local TREMOR = "nullarbor-emergence-tremor"
+-- Number of crack decal variations on the tremor marker; keep in sync with
+-- CRACK_VARIATION_COUNT in prototypes/entities/emergence-marker.lua.
+local TREMOR_VARIATIONS = 20
 local EMERGENCE_SAND = "nullarbor-sand"
 local EMERGENCE_CHECK_PERIOD = 90 -- director cadence (ticks)
 local EMERGENCE_GRACE = 8 * 60 * 60 -- calm window after arrival (placeholder)
 local EMERGENCE_RAMP = 45 * 60 * 60 -- time from grace-end to full intensity
-local EMERGENCE_INTERVAL_MAX = 5 * 60 * 60 -- gap between emergences at e=0
-local EMERGENCE_INTERVAL_MIN = 40 * 60 -- gap at e=1
+local EMERGENCE_INTERVAL_MAX = 10 * 60 * 60 -- gap between emergences at e=0 (10 min)
+local EMERGENCE_INTERVAL_MIN = 5 * 60 * 60 -- gap at e=1 (5 min)
 local EMERGENCE_MAX_ACTIVE = 3 -- concurrent telegraphed sites (per-region caps TBD)
-local PRECURSOR_TICKS = 8 * 60 -- telegraph warning window
-local EMERGENCE_MIN_DIST = 32 -- ring around the player to site within
-local EMERGENCE_MAX_DIST = 80
-local EMERGENCE_SITE_ATTEMPTS = 12 -- random probes before giving up this cycle
-local EMERGENCE_POLLUTION_MAX = 5 -- site chunk must be under this pollution
+-- Telegraph warning window: how long a site stays visible before the band fires.
+-- Independent of the emergence interval (which is scheduled from each site's start
+-- tick), so lengthening this raises the fraction of time a site is on-screen and
+-- shortens the gap after one fires -- without changing how often emergences occur.
+local PRECURSOR_TICKS = 2 * 60 * 60
+local EMERGENCE_MIN_DIST = 32 -- inner buffer: never site a band closer than this to the player
+local EMERGENCE_SEARCH_CHUNKS = 16 -- outward chunk-ring search cap (~512 tiles) -- safety bound, not a design distance
+local EMERGENCE_POLLUTION_MAX = 1 -- site chunk must be essentially pristine (outside the cloud, not its fringe)
 local BAND_MIN = 4 -- swarmers per band at e=0 (morphing escalates them)
 local BAND_MAX = 12 -- at e=1
 local EMERGENCE_SPREAD = 3 -- band scatter radius
+local EMERGENCE_DUST = "nullarbor-emergence-dust" -- custom large tan dust cloud
+local EMERGENCE_DUST_PERIOD = 20 -- ticks between dust puffs per site (unique period)
+local EMERGENCE_DUST_JITTER = 2.5 -- puff offset from the marker centre
 local BOUNDARY_THRESHOLD = 20 -- chunk pollution counted as "the cloud"
 local BOUNDARY_SEARCH_CHUNKS = 5 -- how far out to look for the boundary
 local ALERT_ICON = { type = "virtual", name = "nullarbor-emergence-alert" }
@@ -860,18 +869,70 @@ local function players_on(surface)
   return list
 end
 
--- Probe random points in a ring around the origin for a valid, near-pristine
--- sand tile. Tiles are sampled at their centre (+0.5).
+-- Origin for a new emergence: a random player-force structure (military target --
+-- assemblers, furnaces, turrets, etc.; excludes belts/inserters/wires), so bands
+-- anchor to the base and can threaten outposts the player isn't standing at. The
+-- scan runs only when a new emergence is due (every few minutes), so its cost is
+-- amortised. Falls back to a present player before any base structure exists.
+local function emergence_origin(surface, players)
+  local anchors = surface.find_entities_filtered({ force = "player", is_military_target = true })
+  if #anchors > 0 then
+    return anchors[math.random(#anchors)].position
+  end
+  return players[math.random(#players)].position
+end
+
+-- Find the *nearest pristine sand* to the player and site the band there, so it
+-- emerges just outside the pollution cloud (whatever the cloud's size) and then
+-- paths inward to its edge. Expands chunk-ring by chunk-ring from the player's
+-- chunk; at the first ring holding any pristine (sub-threshold pollution) sand
+-- chunk, picks one at random for directional variety. Only generated chunks are
+-- considered, which also caps the work to explored terrain. Returns a tile centre
+-- (+0.5), or nil if nothing qualifies within the safety radius (band then wanders).
+local EMERGENCE_MIN_DIST_SQ = EMERGENCE_MIN_DIST * EMERGENCE_MIN_DIST
+local function pristine_sand_in_chunk(surface, cx, cy, origin)
+  local area = { { cx * 32, cy * 32 }, { cx * 32 + 32, cy * 32 + 32 } }
+  local sand = surface.find_tiles_filtered({ area = area, name = EMERGENCE_SAND })
+  -- Shuffle-free random pick that still respects the inner buffer: scan tiles in
+  -- random order, return the first far enough from the player.
+  while #sand > 0 do
+    local k = math.random(#sand)
+    local t = sand[k].position
+    local dx, dy = t.x + 0.5 - origin.x, t.y + 0.5 - origin.y
+    if dx * dx + dy * dy >= EMERGENCE_MIN_DIST_SQ then
+      return { x = t.x + 0.5, y = t.y + 0.5 }
+    end
+    sand[k] = sand[#sand]
+    sand[#sand] = nil
+  end
+  return nil
+end
+
 local function find_emergence_site(surface, origin)
-  for _ = 1, EMERGENCE_SITE_ATTEMPTS do
-    local angle = math.random() * 2 * math.pi
-    local dist = EMERGENCE_MIN_DIST + math.random() * (EMERGENCE_MAX_DIST - EMERGENCE_MIN_DIST)
-    local pos = {
-      x = math.floor(origin.x + math.cos(angle) * dist) + 0.5,
-      y = math.floor(origin.y + math.sin(angle) * dist) + 0.5,
-    }
-    if surface.get_tile(pos.x, pos.y).name == EMERGENCE_SAND and surface.get_pollution(pos) < EMERGENCE_POLLUTION_MAX then
-      return pos
+  local ocx, ocy = math.floor(origin.x / 32), math.floor(origin.y / 32)
+  for ring = 0, EMERGENCE_SEARCH_CHUNKS do
+    -- Collect this ring's pristine sand-bearing chunks (perimeter of the ring box).
+    local candidates = {}
+    for dcx = -ring, ring do
+      for dcy = -ring, ring do
+        if math.max(math.abs(dcx), math.abs(dcy)) == ring then
+          local cx, cy = ocx + dcx, ocy + dcy
+          if surface.is_chunk_generated({ cx, cy }) and surface.get_pollution({ cx * 32 + 16, cy * 32 + 16 }) < EMERGENCE_POLLUTION_MAX then
+            candidates[#candidates + 1] = { cx = cx, cy = cy }
+          end
+        end
+      end
+    end
+    -- Try candidates in random order until one yields a valid sand tile.
+    while #candidates > 0 do
+      local k = math.random(#candidates)
+      local c = candidates[k]
+      local pos = pristine_sand_in_chunk(surface, c.cx, c.cy, origin)
+      if pos then
+        return pos
+      end
+      candidates[k] = candidates[#candidates]
+      candidates[#candidates] = nil
     end
   end
   return nil
@@ -914,6 +975,9 @@ local function start_emergence(surface, pos, band_size)
   local marker = surface.create_entity({ name = TREMOR, position = pos, force = "neutral" })
   if marker then
     marker.destructible = false
+    -- Pick a random crack decal (matches CRACK_VARIATION_COUNT in emergence-marker.lua)
+    -- so neighbouring emergence sites don't all show the same fracture.
+    marker.graphics_variation = math.random(TREMOR_VARIATIONS)
   end
   storage.emergences[#storage.emergences + 1] = {
     marker = marker,
@@ -1024,7 +1088,7 @@ script.on_nth_tick(EMERGENCE_CHECK_PERIOD, function()
   -- Start a new emergence if past the grace window, cadence, and cap.
   local e = emergence_escalation()
   if e >= 0 and now >= storage.next_emergence_tick and #storage.emergences < EMERGENCE_MAX_ACTIVE then
-    local site = find_emergence_site(surface, players[math.random(#players)].position)
+    local site = find_emergence_site(surface, emergence_origin(surface, players))
     if site then
       start_emergence(surface, site, math.floor(lerp(BAND_MIN, BAND_MAX, e) + 0.5))
       storage.next_emergence_tick = now + lerp(EMERGENCE_INTERVAL_MAX, EMERGENCE_INTERVAL_MIN, e)
@@ -1032,6 +1096,29 @@ script.on_nth_tick(EMERGENCE_CHECK_PERIOD, function()
         player.play_sound({ path = "utility/new_objective" })
       end
     end
+  end
+end)
+
+-- Continuous dust over each telegraphed site: a jittered tan puff per site every
+-- EMERGENCE_DUST_PERIOD ticks, so the churning ground reads as active while the
+-- band brews. Puffs are purely cosmetic (create_trivial_smoke); nothing tracks
+-- them. Runs on its own fast cadence, decoupled from the 90-tick director.
+script.on_nth_tick(EMERGENCE_DUST_PERIOD, function()
+  local emergences = storage.emergences
+  if not emergences or #emergences == 0 then
+    return
+  end
+  local surface = game.surfaces[NULLARBOR]
+  if not surface then
+    return
+  end
+  local j = EMERGENCE_DUST_JITTER
+  for _, entry in pairs(emergences) do
+    local pos = entry.position
+    surface.create_trivial_smoke({
+      name = EMERGENCE_DUST,
+      position = { pos.x + (math.random() * 2 - 1) * j, pos.y + (math.random() * 2 - 1) * j },
+    })
   end
 end)
 
