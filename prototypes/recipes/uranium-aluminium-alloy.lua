@@ -4,8 +4,8 @@ data:extend({
   {
     type = "recipe",
     name = "nullarbor-uranium-aluminium-alloy",
-    icon = "__base__/graphics/icons/uranium-238.png",
-    icon_size = 64,
+    -- No explicit icon: single-output recipe inherits the alloy item's icon (the
+    -- tinted steel plate), so the recipe button matches the material automatically.
     category = "nullarbor-crafting",
     energy_required = 10,
     ingredients = {
@@ -26,7 +26,12 @@ data:extend({
     -- the lossy U-238 extraction the Burner Assembling Machine route needs. Amounts
     -- and energy are placeholder -- needs balancing vs. that route (2 U-238 + 4
     -- aluminium -> 1 alloy).
-    icons = { { icon = "__space-age__/graphics/icons/fluid/fluorine.png", icon_size = 64, tint = tints.aluminium } },
+    -- Radioactive slurry base (matching the fluid) with an alloy badge in the
+    -- corner: signals slurry -> uranium-aluminium alloy.
+    icons = {
+      { icon = "__base__/graphics/icons/fluid/lubricant.png", icon_size = 64, tint = tints.slurry },
+      { icon = "__space-age__/graphics/icons/tungsten-plate.png", icon_size = 64, tint = tints.alloy, scale = 0.5, shift = { 8, 8 } },
+    },
     subgroup = "nullarbor-materials",
     order = "f[nullarbor]-a[uranium-aluminium-alloy]-b[casting]",
     category = "metallurgy",

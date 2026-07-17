@@ -1,9 +1,10 @@
+local tints = require("prototypes.material-tints")
+
 data:extend({
   {
     type = "fluid",
     name = "nullarbor-radioactive-slurry",
-    icon = "__space-age__/graphics/icons/fluid/fluorine.png",
-    icon_size = 64,
+    icons = { { icon = "__base__/graphics/icons/fluid/lubricant.png", icon_size = 64, tint = tints.slurry } },
     subgroup = "nullarbor-fluids",
     order = "b[radioactive-slurry]",
     default_temperature = 25,

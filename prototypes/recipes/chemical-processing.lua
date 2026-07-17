@@ -1,9 +1,15 @@
+local tints = require("prototypes.material-tints")
+
 data:extend({
   {
     type = "recipe",
     name = "nullarbor-slurry-u238",
-    icon = "__space-age__/graphics/icons/fluid/fluorine.png",
-    icon_size = 64,
+    -- Slurry base (matching the fluid) with a uranium-238 badge in the corner to
+    -- signal what the recipe extracts.
+    icons = {
+      { icon = "__base__/graphics/icons/fluid/lubricant.png", icon_size = 64, tint = tints.slurry },
+      { icon = "__base__/graphics/icons/uranium-238.png", icon_size = 64, scale = 0.5, shift = { 8, 8 } },
+    },
     subgroup = "nullarbor-processing",
     order = "c[chemistry]-a[slurry-u238]",
     category = "chemistry",

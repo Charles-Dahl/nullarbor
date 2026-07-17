@@ -22,4 +22,12 @@ return {
   -- the plate a cool sky-blue and separate it visually from steel. Raise r/g
   -- back toward 1.0 if it reads too saturated.
   aluminium = { r = 0.8, g = 0.85, b = 1 },
+  -- Uranium-aluminium alloy: green over the tungsten-plate art. Red/blue are
+  -- pulled down while green stays high, giving the dark plate a uranium-green
+  -- cast distinct from aluminium's sky-blue.
+  alloy = { r = 0.42, g = 0.85, b = 0.4 },
+  -- Radioactive slurry: a dark tint over the (green) lubricant art, so the fluid
+  -- icon reads as dense dark-green sludge. Keeps a little green to match the
+  -- fluid's in-pipe colour; lower all channels together for a darker sludge.
+  slurry = { r = 0.3, g = 0.36, b = 0.28 },
 }
