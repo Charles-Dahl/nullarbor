@@ -984,7 +984,7 @@ script.on_nth_tick(DECAY_PERIOD, function()
   for i = 1, #hunters do
     local hunter = hunters[i]
     if hunter.valid then
-      local loss = hunter.prototype.max_health * DECAY_FRACTION
+      local loss = hunter.max_health * DECAY_FRACTION
       if hunter.health <= loss then
         hunter.destroy()
       else
