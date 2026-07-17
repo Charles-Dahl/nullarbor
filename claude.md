@@ -71,7 +71,7 @@ Fueling: deep fuel buffer (several slots), refuels itself natively from any fuel
 
 Placement (train-stop model): must straddle a straight belt run lengthwise — both covered tiles need straight, same-direction belts parallel to the footprint axis; belt ghosts count. Manual placement (real or ghost) elsewhere is rejected with a cursor warning — no auto-snap, since the build preview can't show a snapped position (deliberate WYSIWYG decision). Successful builds normalize facing to the belt's flow (180° flip only; footprint and function identical). Holding the item highlights valid belt runs nearby. Bot/script builds are never rejected — a distributor whose underlay is missing or invalid (removed later, rotated, or belts not yet built) is disabled with a "Must be over belts" status and re-enables automatically, checked once per second.
 
-### Distributor Crane (Reimagined Distributor)
+### Distributor (Reimagined Distributor)
 Footprint: 3x3
 Energy: Fuel
 
