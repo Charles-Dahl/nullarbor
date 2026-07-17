@@ -4,7 +4,7 @@
 -- they exist (space-age already loads it for the crusher itself).
 require("__space-age__.prototypes.entity.crusher-pictures")
 
-local pyro_tint = { r = 1.0, g = 0.6, b = 0.42 }
+local pyro_tint = require("prototypes.material-tints").pyromill
 -- Build a fresh tinted body animation per direction (each call returns its own
 -- table so the tint isn't shared/mutated across directions).
 local function tinted_body(build)

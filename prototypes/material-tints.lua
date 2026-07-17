@@ -29,6 +29,9 @@ return {
   -- Atmospheric Condenser: purple over the assembling-machine-3 art. Green is
   -- suppressed while red/blue stay high for a violet cast.
   purple = { r = 0.82, g = 0.56, b = 0.97 },
+  -- Pyromill: light red over the Space Age crusher art. Green is dropped below
+  -- blue so it reads red (not orange) and stays distinct from the real crusher.
+  pyromill = { r = 1.0, g = 0.75, b = 0.75 },
   -- Radioactive slurry: a dark tint over the (green) lubricant art, so the fluid
   -- icon reads as dense dark-green sludge. Keeps a little green to match the
   -- fluid's in-pipe colour; lower all channels together for a darker sludge.
