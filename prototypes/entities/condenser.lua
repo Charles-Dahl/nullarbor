@@ -94,7 +94,9 @@ data:extend({
     energy_source = {
       type = "electric",
       usage_priority = "secondary-input",
-      emissions_per_minute = { pollution = 2 },
+      -- No pollution: pollution disables condensers (the inversion mechanic), so a
+      -- self-polluting condenser would throttle itself. Water gathering is clean.
+      emissions_per_minute = { pollution = 0 },
     },
     energy_usage = "375kW",
     module_slots = 4,

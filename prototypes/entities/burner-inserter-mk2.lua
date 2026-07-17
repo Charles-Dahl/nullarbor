@@ -20,6 +20,9 @@ data:extend({
     },
     collision_box = { { -0.15, -0.15 }, { 0.15, 0.15 } },
     selection_box = { { -0.4, -0.35 }, { 0.4, 0.45 } },
+    -- Shares the vanilla inserter group so the burner inserter (and other vanilla
+    -- inserters) fast-replace into the mk2 as an upgrade.
+    fast_replaceable_group = "inserter",
     damaged_trigger_effect = hit_effects.entity(),
     pickup_position = { 0, -1 },
     insert_position = { 0, 1.2 },
