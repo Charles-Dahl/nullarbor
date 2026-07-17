@@ -1,6 +1,7 @@
 require("circuit-connector-sprites")
 local hit_effects = require("__base__/prototypes/entity/hit-effects")
 local sounds = require("__base__/prototypes/entity/sounds")
+local tints = require("prototypes.material-tints")
 
 data:extend({
   {
@@ -66,6 +67,7 @@ data:extend({
       width = 32,
       height = 136,
       scale = 0.25,
+      tint = tints.aluminium,
     },
     hand_closed_picture = {
       filename = "__base__/graphics/entity/burner-inserter/burner-inserter-hand-closed.png",
@@ -73,6 +75,7 @@ data:extend({
       width = 72,
       height = 164,
       scale = 0.25,
+      tint = tints.aluminium,
     },
     hand_open_picture = {
       filename = "__base__/graphics/entity/burner-inserter/burner-inserter-hand-open.png",
@@ -80,6 +83,7 @@ data:extend({
       width = 72,
       height = 164,
       scale = 0.25,
+      tint = tints.aluminium,
     },
     hand_base_shadow = {
       filename = "__base__/graphics/entity/burner-inserter/burner-inserter-hand-base-shadow.png",
@@ -110,6 +114,7 @@ data:extend({
         height = 79,
         shift = util.by_pixel(1.5, 7.5 - 1),
         scale = 0.5,
+        tint = tints.aluminium,
       },
     },
     circuit_connector = circuit_connector_definitions["inserter"],

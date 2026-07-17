@@ -26,6 +26,9 @@ return {
   -- pulled down while green stays high, giving the dark plate a uranium-green
   -- cast distinct from aluminium's sky-blue.
   alloy = { r = 0.42, g = 0.85, b = 0.4 },
+  -- Atmospheric Condenser: purple over the assembling-machine-3 art. Green is
+  -- suppressed while red/blue stay high for a violet cast.
+  purple = { r = 0.82, g = 0.56, b = 0.97 },
   -- Radioactive slurry: a dark tint over the (green) lubricant art, so the fluid
   -- icon reads as dense dark-green sludge. Keeps a little green to match the
   -- fluid's in-pipe colour; lower all channels together for a darker sludge.

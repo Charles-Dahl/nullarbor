@@ -1,9 +1,10 @@
+local tints = require("prototypes.material-tints")
+
 data:extend({
   {
     type = "item",
     name = "nullarbor-condenser",
-    icon = "__base__/graphics/icons/assembling-machine-3.png",
-    icon_size = 64,
+    icons = { { icon = "__base__/graphics/icons/assembling-machine-3.png", icon_size = 64, tint = tints.purple } },
     subgroup = "nullarbor-machines",
     order = "c[condenser]",
     place_result = "nullarbor-condenser",

@@ -3,6 +3,7 @@ require("circuit-connector-sprites")
 require("__base__/prototypes/entity/assemblerpipes")
 local hit_effects = require("__base__/prototypes/entity/hit-effects")
 local sounds = require("__base__/prototypes/entity/sounds")
+local tints = require("prototypes.material-tints")
 
 data:extend({
   {
@@ -73,6 +74,7 @@ data:extend({
             line_length = 8,
             shift = util.by_pixel(0, -0.75),
             scale = 0.5,
+            tint = tints.purple,
           },
           {
             filename = "__base__/graphics/entity/assembling-machine-3/assembling-machine-3-shadow.png",
