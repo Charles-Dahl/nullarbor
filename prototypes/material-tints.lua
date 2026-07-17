@@ -11,6 +11,9 @@ return {
   -- and make it pop; red/blue are suppressed. Lower g toward 1.0 if too neon.
   green = { r = 0, g = 1, b = 0 },
   green_map = { r = 0.1, g = 0.7, b = 0.15 },
-  -- Aluminium: cool near-white (multiply can't brighten past the source art).
-  white = { r = 0.88, g = 0.93, b = 1.0 },
+  -- Aluminium: light blue. Multiplicative over the silvery steel-plate art, so
+  -- red/green are pulled down while blue stays at 1.0 to tint (not just darken)
+  -- the plate a cool sky-blue and separate it visually from steel. Raise r/g
+  -- back toward 1.0 if it reads too saturated.
+  aluminium = { r = 0.8, g = 0.85, b = 1 },
 }

@@ -822,7 +822,7 @@ local BAND_MAX = 12 -- at e=1
 local EMERGENCE_SPREAD = 3 -- band scatter radius
 local BOUNDARY_THRESHOLD = 20 -- chunk pollution counted as "the cloud"
 local BOUNDARY_SEARCH_CHUNKS = 5 -- how far out to look for the boundary
-local ALERT_ICON = { type = "virtual", name = "signal-red" }
+local ALERT_ICON = { type = "virtual", name = "nullarbor-emergence-alert" }
 
 -- Surface-life decay: emerged hunters lose a fraction of their max health each
 -- period and are removed at the floor -- the population governor (steady-state

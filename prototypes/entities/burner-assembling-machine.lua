@@ -4,9 +4,9 @@ require("__base__/prototypes/entity/assemblerpipes")
 local hit_effects = require("__base__/prototypes/entity/hit-effects")
 local sounds = require("__base__/prototypes/entity/sounds")
 
--- Placeholder tint: brass/amber, warm like the Pyromill (the burner-building
--- family) but distinct from its orange so the two are easy to tell apart.
-local bam_tint = { r = 0.95, g = 0.78, b = 0.42 }
+-- Tinted to match aluminium (the machine's signature material), sharing the
+-- same cool blue as the aluminium item/recipe icons via the central tint table.
+local bam_tint = require("prototypes.material-tints").aluminium
 
 data:extend({
   {

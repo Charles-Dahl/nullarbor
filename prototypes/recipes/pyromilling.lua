@@ -1,3 +1,5 @@
+local tints = require("prototypes.material-tints")
+
 data:extend({
   {
     type = "recipe",
@@ -36,8 +38,7 @@ data:extend({
   {
     type = "recipe",
     name = "nullarbor-process-bauxite",
-    icon = "__base__/graphics/icons/steel-plate.png",
-    icon_size = 64,
+    icons = { { icon = "__base__/graphics/icons/steel-plate.png", icon_size = 64, tint = tints.aluminium } },
     category = "nullarbor-pyromilling",
     energy_required = 2,
     ingredients = {
