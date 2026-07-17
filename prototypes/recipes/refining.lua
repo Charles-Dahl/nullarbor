@@ -4,6 +4,8 @@ data:extend({
     name = "nullarbor-refine-irradiated-oil",
     icon = "__base__/graphics/icons/fluid/crude-oil.png",
     icon_size = 64,
+    subgroup = "nullarbor-processing",
+    order = "b[refining]-a[irradiated-oil]",
     category = "oil-processing",
     energy_required = 5,
     ingredients = {

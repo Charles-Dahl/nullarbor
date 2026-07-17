@@ -4,7 +4,7 @@ data:extend({
     name = "nullarbor-uranium-aluminium-alloy",
     icon = "__base__/graphics/icons/uranium-238.png",
     icon_size = 64,
-    subgroup = "raw-material",
+    subgroup = "nullarbor-materials",
     order = "f[nullarbor]-a[uranium-aluminium-alloy]",
     stack_size = 100,
   },

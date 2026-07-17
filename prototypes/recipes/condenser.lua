@@ -18,6 +18,8 @@ data:extend({
   {
     type = "recipe",
     name = "nullarbor-condense-water",
+    subgroup = "nullarbor-processing",
+    order = "d[condense-water]",
     category = "nullarbor-condensing",
     energy_required = 5,
     ingredients = {},

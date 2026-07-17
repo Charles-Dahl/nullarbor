@@ -4,6 +4,8 @@ data:extend({
     name = "nullarbor-radioactive-slurry",
     icon = "__space-age__/graphics/icons/fluid/fluorine.png",
     icon_size = 64,
+    subgroup = "nullarbor-fluids",
+    order = "b[radioactive-slurry]",
     default_temperature = 25,
     max_temperature = 100,
     heat_capacity = "0.1kJ",

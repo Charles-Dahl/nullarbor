@@ -6,6 +6,8 @@ data:extend({
     name = "nullarbor-process-ferrous-shale",
     icon = "__base__/graphics/icons/iron-ore.png",
     icon_size = 64,
+    subgroup = "nullarbor-processing",
+    order = "a[pyromilling]-a[ferrous-shale]",
     category = "nullarbor-pyromilling",
     energy_required = 2,
     ingredients = {
@@ -23,6 +25,8 @@ data:extend({
     name = "nullarbor-process-cupric-shale",
     icon = "__base__/graphics/icons/copper-ore.png",
     icon_size = 64,
+    subgroup = "nullarbor-processing",
+    order = "a[pyromilling]-b[cupric-shale]",
     category = "nullarbor-pyromilling",
     energy_required = 2,
     ingredients = {
@@ -39,6 +43,8 @@ data:extend({
     type = "recipe",
     name = "nullarbor-process-bauxite",
     icons = { { icon = "__base__/graphics/icons/steel-plate.png", icon_size = 64, tint = tints.aluminium } },
+    subgroup = "nullarbor-processing",
+    order = "a[pyromilling]-c[bauxite]",
     category = "nullarbor-pyromilling",
     energy_required = 2,
     ingredients = {

@@ -4,7 +4,7 @@ data:extend({
     name = "nullarbor-energetic-science-pack",
     icon = "__base__/graphics/icons/automation-science-pack.png",
     icon_size = 64,
-    subgroup = "science-pack",
+    subgroup = "nullarbor-materials",
     order = "z[nullarbor]-a[energetic-science-pack]",
     stack_size = 200,
     weight = 1 * kg,

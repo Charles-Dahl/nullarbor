@@ -4,6 +4,8 @@ data:extend({
     name = "nullarbor-irradiated-oil",
     icon = "__base__/graphics/icons/fluid/crude-oil.png",
     icon_size = 64,
+    subgroup = "nullarbor-fluids",
+    order = "a[irradiated-oil]",
     default_temperature = 25,
     max_temperature = 100,
     heat_capacity = "0.1kJ",

@@ -4,6 +4,8 @@ data:extend({
     name = "nullarbor-slurry-u238",
     icon = "__space-age__/graphics/icons/fluid/fluorine.png",
     icon_size = 64,
+    subgroup = "nullarbor-processing",
+    order = "c[chemistry]-a[slurry-u238]",
     category = "chemistry",
     energy_required = 5,
     ingredients = {
@@ -21,6 +23,8 @@ data:extend({
     name = "nullarbor-solid-fuel-to-coal",
     icon = "__base__/graphics/icons/coal.png",
     icon_size = 64,
+    subgroup = "nullarbor-processing",
+    order = "c[chemistry]-b[solid-fuel-to-coal]",
     category = "chemistry",
     energy_required = 5,
     ingredients = {

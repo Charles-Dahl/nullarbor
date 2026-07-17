@@ -5,7 +5,7 @@ data:extend({
     type = "item",
     name = "nullarbor-aluminium",
     icons = { { icon = "__base__/graphics/icons/steel-plate.png", icon_size = 64, tint = tints.aluminium } },
-    subgroup = "raw-resource",
+    subgroup = "nullarbor-materials",
     order = "a[nullarbor]-b[aluminium]",
     stack_size = 50,
   },

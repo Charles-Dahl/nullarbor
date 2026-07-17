@@ -5,6 +5,9 @@ require("util")
 -- Recipe Categories
 require("prototypes.categories.recipe-categories")
 
+-- Item group + subgroups (the Nullarbor crafting-menu tab)
+require("prototypes.item-groups")
+
 -- Items
 require("prototypes.items.ferrous-shale")
 require("prototypes.items.cupric-shale")
