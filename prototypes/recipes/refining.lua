@@ -17,6 +17,6 @@ data:extend({
       { type = "fluid", name = "nullarbor-radioactive-slurry", amount = 25 },
     },
     enabled = false,
-    allow_productivity = false,
+    allow_productivity = true,
   },
 })

@@ -12,6 +12,9 @@ data:extend({
     effects = {
       { type = "unlock-recipe", recipe = "nullarbor-refine-irradiated-oil" },
       { type = "unlock-recipe", recipe = "nullarbor-slurry-u238" },
+      -- Foundry alloy casting: an alternative uranium-aluminium-alloy source,
+      -- usable once slurry is available and the player has a Foundry.
+      { type = "unlock-recipe", recipe = "nullarbor-uranium-aluminium-alloy-casting" },
     },
   },
 })
