@@ -979,23 +979,44 @@ local function start_emergence(surface, pos, band_size)
     -- so neighbouring emergence sites don't all show the same fracture.
     marker.graphics_variation = math.random(TREMOR_VARIATIONS)
   end
+  local fire_tick = game.tick + PRECURSOR_TICKS
+  -- Floating countdown over the site; updated on the fast dust cadence and
+  -- destroyed at fire. Stored on the entry so it survives save/load.
+  local timer = rendering.draw_text({
+    text = { "nullarbor.emergence-countdown", math.ceil(PRECURSOR_TICKS / 60) },
+    surface = surface,
+    target = { x = pos.x, y = pos.y - 1.5 },
+    color = { r = 1, g = 0.82, b = 0.35 },
+    scale = 2.2,
+    alignment = "center",
+    vertical_alignment = "middle",
+    scale_with_zoom = true,
+  })
   storage.emergences[#storage.emergences + 1] = {
     marker = marker,
     position = pos,
-    fire_tick = game.tick + PRECURSOR_TICKS,
+    fire_tick = fire_tick,
     band_size = band_size,
+    timer = timer,
   }
 end
 
+-- Whole seconds until this site fires (never negative).
+local function emergence_seconds_left(entry)
+  return math.max(0, math.ceil((entry.fire_tick - game.tick) / 60))
+end
+
 -- (Re)assert the custom alert on each player; custom alerts fade if not
--- refreshed, so the director re-adds them each cycle. Cleared when the marker is
+-- refreshed, so the director re-adds them each cycle. The message carries a live
+-- countdown (updated at the 90-tick director cadence). Cleared when the marker is
 -- destroyed at fire.
 local function refresh_alert(entry, players)
   if not (entry.marker and entry.marker.valid) then
     return
   end
+  local secs = emergence_seconds_left(entry)
   for _, player in pairs(players) do
-    player.add_custom_alert(entry.marker, ALERT_ICON, { "nullarbor.emergence-warning" }, true)
+    player.add_custom_alert(entry.marker, ALERT_ICON, { "nullarbor.emergence-warning", secs }, true)
   end
 end
 
@@ -1033,6 +1054,9 @@ local function fire_emergence(surface, entry)
   end
   if entry.marker and entry.marker.valid then
     entry.marker.destroy()
+  end
+  if entry.timer and entry.timer.valid then
+    entry.timer.destroy()
   end
 end
 
@@ -1119,6 +1143,11 @@ script.on_nth_tick(EMERGENCE_DUST_PERIOD, function()
       name = EMERGENCE_DUST,
       position = { pos.x + (math.random() * 2 - 1) * j, pos.y + (math.random() * 2 - 1) * j },
     })
+    -- Tick the floating countdown down on this faster cadence so the seconds
+    -- decrement smoothly (the alert message steps on the slower director cadence).
+    if entry.timer and entry.timer.valid then
+      entry.timer.text = { "nullarbor.emergence-countdown", emergence_seconds_left(entry) }
+    end
   end
 end)
 
