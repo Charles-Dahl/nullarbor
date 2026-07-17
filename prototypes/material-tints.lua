@@ -3,9 +3,15 @@
 -- tints are MULTIPLICATIVE (they darken/shift the borrowed vanilla art); the
 -- _map colours are absolute minimap colours.
 return {
-  -- Shale family + bauxite: grey rock.
+  -- Shale family + bauxite: grey rock IN WORLD (shared graphic tint), but each
+  -- reads by yield ON THE MAP so patches are distinguishable at a glance --
+  -- rust-red iron, orange copper, blue bauxite/aluminium. (grey_map kept for
+  -- reference / any fallback use.)
   grey = { r = 0.58, g = 0.6, b = 0.64 },
   grey_map = { r = 0.5, g = 0.5, b = 0.52 },
+  ferrous_map = { r = 0.42, g = 0.58, b = 0.85 },
+  cupric_map = { r = 0.82, g = 0.47, b = 0.2 },
+  bauxite_map = { r = 0.72, g = 0.6, b = 0.24 },
   -- Irradiated oil: vibrant green. The crude-oil art is near-black, so the
   -- green channel is pushed ABOVE 1.0 to brighten (not just darken) the oil
   -- and make it pop; red/blue are suppressed. Lower g toward 1.0 if too neon.

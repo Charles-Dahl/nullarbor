@@ -26,6 +26,6 @@ data:extend({
       },
     },
     stage_counts = { 0 },
-    map_color = tints.grey_map,
+    map_color = tints.cupric_map,
   },
 })
