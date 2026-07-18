@@ -14,6 +14,7 @@ data:extend({
       { type = "unlock-recipe", recipe = "nullarbor-burner-assembling-machine" },
       { type = "unlock-recipe", recipe = "nullarbor-uranium-aluminium-alloy" },
       { type = "unlock-recipe", recipe = "nullarbor-burner-inserter-mk2" },
+      { type = "unlock-recipe", recipe = "nullarbor-mining-wagon" },
     },
   },
 })

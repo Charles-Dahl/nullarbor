@@ -16,6 +16,7 @@ local register_solar_panel
 -- decay. Assigned in the emergence section; hoisted so the morph completion
 -- handler (below) can register the bruisers/exploders it creates.
 local register_hunter
+local register_mining_wagon
 
 local GANTRY = "nullarbor-gantry"
 local GANTRY_LOADER = "nullarbor-gantry-loader"
@@ -27,6 +28,13 @@ local CRANE_LOADER = "nullarbor-crane-loader"
 local CRANE_IN_BIN = "nullarbor-crane-input-bin"
 local CRANE_OUT_BIN = "nullarbor-crane-output-bin"
 local CRANE_RADIUS = 4
+
+local MINING_WAGON = "nullarbor-mining-wagon"
+local MINING_DRILL = "nullarbor-mining-wagon-drill"
+local MINING_WAGON_GUI = "nullarbor-mining-wagon-fuel"
+local MINING_SERVICE_PERIOD = 30 -- ticks: fuel top-up + fuel-bar refresh cadence
+local MINING_FUEL_REF = 4000000 -- J reference (~coal) for the fuel-bar fraction
+local MINING_AREA_R = 3 -- half-extent of the hover area highlight (matches the drill's ~6x6)
 -- Keep each serviced machine topped up to this many of every item it accepts
 -- (ingredients and burner fuel). Placeholder value, needs balancing.
 local CRANE_INPUT_TARGET = 10
@@ -264,7 +272,8 @@ local function distribute_inputs(machines, in_bin)
       -- the full count); then insert the capped amount and let insert() take
       -- whatever fits.
       if need > 0 and machine.can_insert({ name = item.name, count = 1, quality = item.quality }) then
-        local inserted = machine.insert({ name = item.name, count = math.min(need, item.count), quality = item.quality })
+        local inserted =
+          machine.insert({ name = item.name, count = math.min(need, item.count), quality = item.quality })
         if inserted > 0 then
           in_inv.remove({ name = item.name, count = inserted, quality = item.quality })
         end
@@ -445,6 +454,16 @@ script.on_event(defines.events.on_gui_closed, function(event)
   if event.element and event.element.valid and event.element.name == CRANE_GUI then
     event.element.destroy()
     storage.crane_guis[event.player_index] = nil
+    return
+  end
+  -- Mining wagon closed: tear down its relative fuel bar.
+  if storage.mining_wagon_guis and storage.mining_wagon_guis[event.player_index] then
+    storage.mining_wagon_guis[event.player_index] = nil
+    local player = game.get_player(event.player_index)
+    local frame = player and player.gui.relative[MINING_WAGON_GUI]
+    if frame and frame.valid then
+      frame.destroy()
+    end
   end
 end)
 
@@ -459,6 +478,8 @@ local function on_built(event)
     on_gantry_built(entity)
   elseif entity.name == CRANE then
     on_crane_built(entity)
+  elseif entity.name == MINING_WAGON then
+    register_mining_wagon(entity)
   elseif entity.type == "solar-panel" and entity.surface.name == "nullarbor" then
     register_solar_panel(entity)
   end
@@ -467,6 +488,7 @@ end
 local build_filter = {
   { filter = "name", name = GANTRY },
   { filter = "name", name = CRANE },
+  { filter = "name", name = MINING_WAGON },
   { filter = "type", type = "solar-panel" },
 }
 script.on_event(defines.events.on_built_entity, on_built, build_filter)
@@ -497,6 +519,15 @@ script.on_event(defines.events.on_object_destroyed, function(event)
       if part.valid then
         part.destroy()
       end
+    end
+    return
+  end
+  -- A mining wagon was removed: destroy its persistent hidden drill.
+  local mining = storage.mining_wagons[event.useful_id]
+  if mining then
+    storage.mining_wagons[event.useful_id] = nil
+    if mining.drill and mining.drill.valid then
+      mining.drill.destroy()
     end
     return
   end
@@ -917,7 +948,10 @@ local function find_emergence_site(surface, origin)
       for dcy = -ring, ring do
         if math.max(math.abs(dcx), math.abs(dcy)) == ring then
           local cx, cy = ocx + dcx, ocy + dcy
-          if surface.is_chunk_generated({ cx, cy }) and surface.get_pollution({ cx * 32 + 16, cy * 32 + 16 }) < EMERGENCE_POLLUTION_MAX then
+          if
+            surface.is_chunk_generated({ cx, cy })
+            and surface.get_pollution({ cx * 32 + 16, cy * 32 + 16 }) < EMERGENCE_POLLUTION_MAX
+          then
             candidates[#candidates + 1] = { cx = cx, cy = cy }
           end
         end
@@ -1165,6 +1199,9 @@ script.on_init(function()
   storage.emergences = {}
   storage.next_emergence_tick = 0
   storage.hunters = {}
+  storage.mining_wagons = {}
+  storage.mining_wagon_guis = {}
+  storage.mining_wagon_hover = {}
 end)
 
 script.on_configuration_changed(function()
@@ -1176,6 +1213,9 @@ script.on_configuration_changed(function()
   storage.emergences = storage.emergences or {}
   storage.next_emergence_tick = storage.next_emergence_tick or 0
   storage.hunters = storage.hunters or {}
+  storage.mining_wagons = storage.mining_wagons or {}
+  storage.mining_wagon_guis = storage.mining_wagon_guis or {}
+  storage.mining_wagon_hover = storage.mining_wagon_hover or {}
   -- Rebuild the solar registry from a surface scan so panels placed before this
   -- feature (or in an existing save) are picked up.
   seed_solar_registry()
@@ -1185,4 +1225,228 @@ script.on_configuration_changed(function()
   storage.highlight_players = nil
   storage.highlight_objects = nil
   storage.selection_arrows = nil
+end)
+
+-- ========================= mining wagon =========================
+-- A Mining Wagon (cargo wagon) owns a persistent, hidden, collisionless mining
+-- drill created on build. The drill is paused while the train moves and teleported
+-- onto the resource + reactivated when the train stops at a station on straight
+-- rail; it loads the wagon via drop_target and honours mining productivity/quality
+-- natively. Its small burner buffer is topped from the train's locomotive, and a
+-- read-only fuel bar on the wagon shows that buffer.
+
+local function is_axis_aligned(orientation)
+  for _, a in ipairs({ 0, 0.25, 0.5, 0.75, 1 }) do
+    if math.abs(orientation - a) < 0.02 then
+      return true
+    end
+  end
+  return false
+end
+
+local function train_locomotives(train)
+  local list = {}
+  if not train then
+    return list
+  end
+  local movers = train.locomotives
+  for _, loco in ipairs(movers.front_movers) do
+    list[#list + 1] = loco
+  end
+  for _, loco in ipairs(movers.back_movers) do
+    list[#list + 1] = loco
+  end
+  return list
+end
+
+-- Fraction (0..1) of the drill's fuel buffer, for the wagon fuel bar.
+local function drill_fuel_fraction(drill)
+  local burner = drill.burner
+  if not burner then
+    return 0
+  end
+  local energy = burner.remaining_burning_fuel or 0
+  local inv = burner.inventory
+  if inv and not inv.is_empty() then
+    energy = energy + MINING_FUEL_REF
+  end
+  return math.min(1, energy / MINING_FUEL_REF)
+end
+
+-- Top up the drill's single-slot buffer with one fuel item pulled from a train
+-- locomotive -- the wagons-per-loco balance lever.
+local function feed_drill(drill, train)
+  local burner = drill.burner
+  local inv = burner and burner.inventory
+  if not inv or not inv.is_empty() then
+    return
+  end
+  for _, loco in ipairs(train_locomotives(train)) do
+    local lb = loco.burner
+    local linv = lb and lb.inventory
+    if linv then
+      for i = 1, #linv do
+        local stack = linv[i]
+        if stack.valid_for_read then
+          local moved = inv.insert({ name = stack.name, count = 1, quality = stack.quality })
+          if moved > 0 then
+            stack.count = stack.count - moved
+            return
+          end
+        end
+      end
+    end
+  end
+end
+
+local function refresh_mining_wagon_gui(player_index)
+  local rec = storage.mining_wagon_guis[player_index]
+  if not rec then
+    return
+  end
+  local entry = storage.mining_wagons[rec.unit_number]
+  if entry and entry.drill and entry.drill.valid and rec.bar and rec.bar.valid then
+    rec.bar.value = drill_fuel_fraction(entry.drill)
+  end
+end
+
+local function make_wagon_drill(wagon)
+  local drill = wagon.surface.create_entity({
+    name = MINING_DRILL,
+    position = wagon.position,
+    force = wagon.force,
+  })
+  if drill then
+    drill.active = false
+    drill.drop_target = wagon
+  end
+  return drill
+end
+
+register_mining_wagon = function(wagon)
+  storage.mining_wagons[wagon.unit_number] = { wagon = wagon, drill = make_wagon_drill(wagon) }
+  script.register_on_object_destroyed(wagon)
+end
+
+-- Deploy on stop at a station (straight rail); pause otherwise.
+script.on_event(defines.events.on_train_changed_state, function(event)
+  local train = event.train
+  local stopped = train.state == defines.train_state.wait_station
+  for _, carriage in pairs(train.carriages) do
+    if carriage.valid and carriage.name == MINING_WAGON then
+      local entry = storage.mining_wagons[carriage.unit_number]
+      if entry and entry.drill and entry.drill.valid then
+        if stopped and is_axis_aligned(carriage.orientation) then
+          entry.drill.teleport(carriage.position)
+          entry.drill.drop_target = carriage
+          entry.drill.active = true
+        else
+          entry.drill.active = false
+        end
+      end
+    end
+  end
+end)
+
+-- Read-only fuel bar, attached under the wagon's inventory window.
+script.on_event(defines.events.on_gui_opened, function(event)
+  if event.gui_type ~= defines.gui_type.entity then
+    return
+  end
+  local wagon = event.entity
+  if not (wagon and wagon.valid and wagon.name == MINING_WAGON) then
+    return
+  end
+  local player = game.get_player(event.player_index)
+  if not player then
+    return
+  end
+  -- Anchor the bar under the wagon's inventory window. Guarded so a missing anchor
+  -- type just skips the bar rather than crashing.
+  local anchor_gui = defines.relative_gui_type.cargo_wagon_gui
+  if not anchor_gui then
+    return
+  end
+  local rel = player.gui.relative
+  if rel[MINING_WAGON_GUI] then
+    rel[MINING_WAGON_GUI].destroy()
+  end
+  local frame = rel.add({
+    type = "frame",
+    name = MINING_WAGON_GUI,
+    direction = "vertical",
+    caption = { "nullarbor.mining-wagon-fuel" },
+    anchor = {
+      gui = anchor_gui,
+      position = defines.relative_gui_position.bottom,
+    },
+  })
+  local bar = frame.add({ type = "progressbar", name = "bar", value = 0 })
+  bar.style.horizontally_stretchable = true
+  bar.style.width = 220
+  storage.mining_wagon_guis[event.player_index] = { unit_number = wagon.unit_number, bar = bar }
+  refresh_mining_wagon_gui(event.player_index)
+end)
+
+-- Fuel top-up for active drills + fuel-bar refresh.
+script.on_nth_tick(MINING_SERVICE_PERIOD, function()
+  for unit_number, entry in pairs(storage.mining_wagons) do
+    if entry.wagon and entry.wagon.valid then
+      if not (entry.drill and entry.drill.valid) then
+        entry.drill = make_wagon_drill(entry.wagon) -- self-heal
+      end
+      if entry.drill and entry.drill.valid and entry.drill.active then
+        feed_drill(entry.drill, entry.wagon.train)
+      end
+    else
+      if entry.drill and entry.drill.valid then
+        entry.drill.destroy()
+      end
+      storage.mining_wagons[unit_number] = nil
+    end
+  end
+  for player_index in pairs(storage.mining_wagon_guis) do
+    refresh_mining_wagon_gui(player_index)
+  end
+end)
+
+-- Show the mining area while a mining wagon is hovered, using the vanilla drill's
+-- per-tile radius marker so it matches a real mining drill's display.
+local function clear_mining_hover(player_index)
+  local objs = storage.mining_wagon_hover[player_index]
+  if objs then
+    for _, obj in pairs(objs) do
+      if obj.valid then
+        obj.destroy()
+      end
+    end
+  end
+  storage.mining_wagon_hover[player_index] = nil
+end
+
+script.on_event(defines.events.on_selected_entity_changed, function(event)
+  clear_mining_hover(event.player_index)
+  local player = game.get_player(event.player_index)
+  local selected = player and player.selected
+  if not (selected and selected.valid and selected.name == MINING_WAGON) then
+    return
+  end
+  local pos = selected.position
+  local objs = {}
+  for ix = math.floor(pos.x - MINING_AREA_R), math.ceil(pos.x + MINING_AREA_R) do
+    for iy = math.floor(pos.y - MINING_AREA_R), math.ceil(pos.y + MINING_AREA_R) do
+      local tcx, tcy = ix + 0.5, iy + 0.5
+      if math.abs(tcx - pos.x) <= MINING_AREA_R and math.abs(tcy - pos.y) <= MINING_AREA_R then
+        objs[#objs + 1] = rendering.draw_sprite({
+          sprite = "nullarbor-mining-radius-viz",
+          target = { tcx, tcy },
+          surface = selected.surface,
+          players = { player },
+          render_layer = "radius-visualization", -- under the wagon, over ground/resources
+          tint = { r = 1, g = 1, b = 1, a = 0.1 }, -- semi-transparent like native
+        })
+      end
+    end
+  end
+  storage.mining_wagon_hover[event.player_index] = objs
 end)

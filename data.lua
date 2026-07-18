@@ -21,6 +21,7 @@ require("prototypes.items.distributor-crane")
 require("prototypes.items.gantry")
 require("prototypes.items.uranium-aluminium-alloy")
 require("prototypes.items.energetic-science-pack")
+require("prototypes.items.mining-wagon")
 
 -- Fluids
 require("prototypes.fluids.irradiated-oil")
@@ -44,6 +45,8 @@ require("prototypes.entities.surface-rock")
 require("prototypes.entities.bestiary")
 require("prototypes.entities.solar-panel-variants")
 require("prototypes.entities.emergence-marker")
+require("prototypes.entities.mining-wagon")
+require("prototypes.entities.mining-wagon-drill")
 
 -- Technologies
 require("prototypes.technologies.pyromill")
@@ -67,6 +70,7 @@ require("prototypes.recipes.gantry")
 require("prototypes.recipes.refining")
 require("prototypes.recipes.chemical-processing")
 require("prototypes.recipes.energetic-science-pack")
+require("prototypes.recipes.mining-wagon")
 
 -- Tiles
 require("prototypes.tile.nullarbor-tiles")
