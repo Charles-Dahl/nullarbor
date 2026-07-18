@@ -15,7 +15,7 @@ data:extend({
     },
     results = {
       { type = "item", name = "iron-ore", amount = 1 },
-      { type = "item", name = "solid-fuel", amount = 2 },
+      { type = "item", name = "solid-fuel", amount = 1 },
     },
     enabled = false,
     allow_productivity = false,
@@ -34,7 +34,7 @@ data:extend({
     },
     results = {
       { type = "item", name = "copper-ore", amount = 1 },
-      { type = "item", name = "solid-fuel", amount = 2 },
+      { type = "item", name = "solid-fuel", amount = 1 },
     },
     enabled = false,
     allow_productivity = false,
