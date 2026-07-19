@@ -5,9 +5,9 @@ data:extend({
     category = "crafting",
     energy_required = 10,
     ingredients = {
-      { type = "item", name = "nullarbor-burner-inserter-mk2", amount = 8 },
-      { type = "item", name = "steel-plate",                   amount = 10 },
-      { type = "item", name = "iron-gear-wheel",               amount = 10 },
+      { type = "item", name = "nullarbor-burner-inserter-mk2",        amount = 8 },
+      { type = "item", name = "nullarbor-uranium-aluminium-alloy",    amount = 5 },
+      { type = "item", name = "iron-gear-wheel",                      amount = 10 },
     },
     results = {
       { type = "item", name = "nullarbor-distributor-crane", amount = 1 },
