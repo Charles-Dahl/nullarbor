@@ -1,54 +1,20 @@
--- Distributor Crane: a heavy industrial crane that services a cluster of
--- crafting machines within an area radius, handling both input and output
--- from a single structure (see CLAUDE.md "Distributor Crane").
+-- Distributor: a heavy crane that services a cluster of crafting machines in a
+-- 7x7 area, handling input and output from one structure (see CLAUDE.md).
 --
--- Implementation: a simple-entity-with-owner shell (the proven gantry
--- pattern) over two hidden 1x1 containers -- a distinct input bin and output
--- bin -- each served by a hidden vanilla loader for direct belt I/O. All
--- building-servicing and the custom two-pane inventory GUI live in
--- control.lua. Nothing is inherited from the agricultural-tower: its native
--- crane AI only harvests plants (it cannot be redirected to buildings, and
--- the arm only animates for harvest ops), its input inventory is seed-
--- filtered, and its status line fought our overrides -- so the shell is fully
--- script-controlled instead.
---
--- Energy: none yet (operates for free). The burner-first fuel layer is a
--- later addition, consistent with the gantry's current state.
-
-local hit_effects = require("__base__/prototypes/entity/hit-effects")
+-- Shell: a cloned agricultural-tower, chosen ONLY for two native features a
+-- simple-entity can't provide -- the crane-arm graphic and a radius shown while
+-- placing the item. ALL native ag-tower behaviour is neutralized (no power, no
+-- planting/harvesting -- nothing is plantable on Nullarbor, no surface-condition
+-- gate, native GUI overridden in control.lua). Servicing, the 4-slot lane I/O,
+-- rotation (loaders only), and the custom GUI all live in control.lua.
 
 local crane_tint = { r = 0.35, g = 0.36, b = 0.38, a = 1.0 }
 
 local CRANE = "nullarbor-distributor-crane"
 
--- ----- art: agricultural-tower base sprite, dark-grey tinted ------------
--- Reuse the vanilla ag tower's base animation (the hub/tower body, minus the
--- crane arm, which is a separate engine-driven layer we don't get on a simple
--- entity) and tint it dark grey. The shadow layer is left untinted.
-local function crane_animation()
-  return {
-    layers = {
-      util.sprite_load("__space-age__/graphics/entity/agricultural-tower/agricultural-tower-base", {
-        priority = "high",
-        animation_speed = 0.25,
-        frame_count = 64,
-        scale = 0.5,
-        tint = crane_tint,
-      }),
-      util.sprite_load("__space-age__/graphics/entity/agricultural-tower/agricultural-tower-base-shadow", {
-        priority = "high",
-        frame_count = 1,
-        repeat_count = 64,
-        draw_as_shadow = true,
-        scale = 0.5,
-      }),
-    },
-  }
-end
-
 -- ----- hidden loader (cloned from vanilla loader-1x1) --------------------
--- Same approach as the gantry: inherit working structure sprites and belt
--- animation, run at the fastest belt tier so it never bottlenecks I/O.
+-- One per I/O face; control.lua routes items per belt lane to/from the 2-slot
+-- bins. Run at the fastest belt tier so it never bottlenecks.
 local loader = util.table.deepcopy(data.raw["loader-1x1"]["loader-1x1"])
 loader.name = "nullarbor-crane-loader"
 loader.hidden = true
@@ -80,30 +46,63 @@ do
   end
 end
 
--- ----- hidden 1x1 buffer bins --------------------------------------------
--- Distinct input and output containers so the crane never re-emits its own
--- input (CLAUDE.md: input and output buffers must be separate). Kept real,
--- selectable and non-hidden so loaders will link to them (same constraint
--- the gantry bin documents); made invisible by having no picture. The custom
--- GUI in control.lua surfaces both as labelled panes.
-local function crane_bin(name)
-  return {
-    type = "container",
-    name = name,
-    icon = "__base__/graphics/icons/steel-chest.png",
-    icon_size = 64,
-    flags = { "placeable-player", "player-creation", "not-blueprintable", "not-deconstructable" },
-    max_health = 200,
-    inventory_size = 16,
-    collision_box = { { -0.4, -0.4 }, { 0.4, 0.4 } },
-    selection_box = { { -0.5, -0.5 }, { 0.5, 0.5 } },
-  }
-end
+-- ----- hidden single 4-slot buffer bin -----------------------------------
+-- Opened natively (player.opened = bin) so slots get real filtered-slot
+-- behaviour. Slot layout: 1 = input left lane, 2 = input right lane, 3 = output
+-- left lane, 4 = output right lane. The player filters slots 3/4 to choose what
+-- each output lane carries. with_filters_and_bar gives the native filter UI.
+-- Collisionless so it sits at the shell centre, off the loaders' container tiles
+-- (loaders stay container-less; control.lua routes each belt lane to a slot).
+local crane_bin = {
+  type = "container",
+  name = "nullarbor-crane-bin",
+  localised_name = { "entity-name.nullarbor-distributor-crane" },
+  icon = "__base__/graphics/icons/steel-chest.png",
+  icon_size = 64,
+  flags = { "placeable-player", "player-creation", "not-blueprintable", "not-deconstructable" },
+  max_health = 200,
+  inventory_size = 4,
+  inventory_type = "with_filters_and_bar",
+  collision_box = { { -0.2, -0.2 }, { 0.2, 0.2 } },
+  collision_mask = { layers = {} },
+  selection_box = { { -0.5, -0.5 }, { 0.5, 0.5 } },
+}
+
+-- ----- shell: neutralized agricultural-tower -----------------------------
+local tower = util.table.deepcopy(data.raw["agricultural-tower"]["agricultural-tower"])
+tower.name = CRANE
+tower.icons = { { icon = "__space-age__/graphics/icons/agricultural-tower.png", icon_size = 64, tint = crane_tint } }
+tower.minable = { mining_time = 0.5, result = CRANE }
+tower.flags = { "placeable-neutral", "placeable-player", "player-creation" }
+tower.fast_replaceable_group = nil
+tower.next_upgrade = nil
+-- Placeable on Nullarbor: drop the Gleba pressure gate.
+tower.surface_conditions = nil
+-- No power draw and never a "no power" status: free void energy, no heat/crane cost.
+tower.energy_source = { type = "void" }
+tower.heating_energy = nil
+tower.crane_energy_usage = "1W"
+tower.energy_usage = "1W"
+-- Ignore the native seed inventory; our servicing uses the hidden bins.
+tower.input_inventory_size = 0
+-- No spore emissions.
+tower.emissions_per_minute = nil
+-- Radius shown while holding the item (issue 5, placing). radius = 2 => 7x7
+-- (3x3 footprint + 2 tiles each side), matching CRANE_AREA_HALF in control.lua.
+tower.radius = 2
+-- Rotatable so pressing R doesn't flash "This can't be rotated"; the graphic is
+-- symmetric, but on_player_rotated_entity reorients the loaders (control.lua).
+tower.rotatable = true
+-- Win hover over the invisible bins/loaders underneath.
+tower.selection_priority = 100
+-- Keep: crane (the arm graphic), planting/harvesting procedure points, and the
+-- base graphics_set -- these render the parked arm and must stay for a valid
+-- agricultural-tower prototype.
 
 data:extend({
   loader,
-  crane_bin("nullarbor-crane-input-bin"),
-  crane_bin("nullarbor-crane-output-bin"),
+  crane_bin,
+  tower,
   {
     type = "custom-input",
     name = "nullarbor-crane-open",
@@ -111,36 +110,11 @@ data:extend({
     linked_game_control = "open-gui",
   },
   {
-    type = "simple-entity-with-owner",
-    name = CRANE,
-    icons = { { icon = "__space-age__/graphics/icons/agricultural-tower.png", icon_size = 64, tint = crane_tint } },
-    flags = { "placeable-neutral", "placeable-player", "player-creation" },
-    minable = { mining_time = 0.5, result = CRANE },
-    max_health = 400,
-    corpse = "big-remnants",
-    dying_explosion = "medium-explosion",
-    resistances = {
-      {
-        type = "fire",
-        percent = 70,
-      },
-    },
-    -- 3x3 footprint. Blocks overlap with other buildings/water like a normal
-    -- structure; the hidden bins/loaders are script-spawned so they bypass
-    -- this collision and sit inside the footprint freely.
-    collision_box = { { -1.4, -1.4 }, { 1.4, 1.4 } },
-    selection_box = { { -1.5, -1.5 }, { 1.5, 1.5 } },
-    collision_mask = {
-      layers = { item = true, object = true, player = true, water_tile = true, is_object = true, is_lower_object = true },
-    },
-    -- Win hover over the invisible bins underneath so the shell is the
-    -- click/mine target and E opens the custom GUI via the custom input.
-    selection_priority = 100,
-    damaged_trigger_effect = hit_effects.entity(),
-    impact_category = "metal",
-    -- The ag tower sprite extends well above its footprint; match vanilla's
-    -- extension so the tower isn't clipped.
-    drawing_box_vertical_extension = 2.5,
-    animations = crane_animation(),
+    -- Rotating a distributor reorients only its hidden loaders (the ag-tower
+    -- graphic is symmetric and doesn't turn). Bound to the vanilla rotate key.
+    type = "custom-input",
+    name = "nullarbor-distributor-rotate",
+    key_sequence = "",
+    linked_game_control = "rotate",
   },
 })

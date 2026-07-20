@@ -25,14 +25,16 @@ local GANTRY_BIN_EW = "nullarbor-gantry-bin-ew"
 
 local CRANE = "nullarbor-distributor-crane"
 local CRANE_LOADER = "nullarbor-crane-loader"
-local CRANE_IN_BIN = "nullarbor-crane-input-bin"
-local CRANE_OUT_BIN = "nullarbor-crane-output-bin"
-local CRANE_RADIUS = 4
+local CRANE_BIN = "nullarbor-crane-bin"
+-- Bin slot layout: 1 = input left lane, 2 = input right, 3 = output left, 4 = output right.
+local CRANE_IN_SLOTS = { 1, 2 }
+local CRANE_OUT_SLOTS = { 3, 4 }
+local CRANE_AREA_HALF = 3.5 -- 7x7 area: 3x3 footprint + 2 tiles each side
 
 local MINING_WAGON = "nullarbor-mining-wagon"
 local MINING_DRILL = "nullarbor-mining-wagon-drill"
 local MINING_WAGON_GUI = "nullarbor-mining-wagon-fuel"
-local MINING_SERVICE_PERIOD = 30 -- ticks: fuel top-up + fuel-bar refresh cadence
+local MINING_SERVICE_PERIOD = 31 -- ticks: fuel top-up + fuel-bar refresh cadence (unique; 30 is the crane servicer)
 local MINING_FUEL_REF = 4000000 -- J reference (~coal) for the fuel-bar fraction
 local MINING_AREA_R = 3 -- half-extent of the hover area highlight (matches the drill's ~6x6)
 -- Keep each serviced machine topped up to this many of every item it accepts
@@ -180,8 +182,7 @@ local function on_composite_mined(event)
   end
   local crane = storage.cranes[event.entity.unit_number]
   if crane then
-    drain_bin_to_buffer(crane.parts.input_bin, event.buffer)
-    drain_bin_to_buffer(crane.parts.output_bin, event.buffer)
+    drain_bin_to_buffer(crane.parts.bin, event.buffer)
   end
 end
 script.on_event(defines.events.on_player_mined_entity, on_composite_mined, composite_mined_filter)
@@ -196,108 +197,263 @@ script.on_event(defines.events.on_robot_mined_entity, on_composite_mined, compos
 -- south face. Loaders are created facing outward and only loader_type is set
 -- afterward (re-setting direction after loader_type flips the belt side — the
 -- gantry documents the same quirk).
-local function create_crane_parts(shell)
+local DIR_VEC = {
+  [defines.direction.north] = { x = 0, y = -1 },
+  [defines.direction.east] = { x = 1, y = 0 },
+  [defines.direction.south] = { x = 0, y = 1 },
+  [defines.direction.west] = { x = -1, y = 0 },
+}
+
+-- One 4-slot bin at the shell centre + two container-less loaders on the chosen
+-- front face. f = front unit vector, p = its perpendicular. The input loader sits
+-- at p*-1, output at p*+1; belt side faces outward (f), container side faces the
+-- footprint interior (empty -- the ag-tower has no linkable inventory), so the
+-- loaders stay container-less and control.lua routes each belt lane to a slot via
+-- their transport lines. Rebuilt on rotation -- the ag-tower graphic doesn't turn.
+local function create_crane_parts(shell, direction)
   local pos = shell.position
-  local south = defines.direction.south
-  local function make_bin(name, dx)
-    local bin = shell.surface.create_entity({
-      name = name,
-      position = { x = pos.x + dx, y = pos.y },
-      force = shell.force,
-    })
-    bin.destructible = false
-    return bin
-  end
-  local function make_loader(dx, is_input)
+  local f = DIR_VEC[direction] or DIR_VEC[defines.direction.south]
+  local p = { x = f.y, y = -f.x } -- perpendicular; input on the left, output on the right
+  local bin = shell.surface.create_entity({
+    name = CRANE_BIN,
+    position = { x = pos.x, y = pos.y },
+    force = shell.force,
+  })
+  bin.destructible = false
+  local function make_loader(side, is_input)
     local loader = shell.surface.create_entity({
       name = CRANE_LOADER,
-      position = { x = pos.x + dx, y = pos.y + 1 },
-      direction = south,
+      position = { x = pos.x + f.x + p.x * side, y = pos.y + f.y + p.y * side },
+      direction = direction,
       force = shell.force,
     })
     loader.destructible = false
+    -- Created facing outward; only loader_type is set after (re-setting direction
+    -- after loader_type flips the belt side -- same quirk the gantry documents).
     loader.loader_type = is_input and "input" or "output"
     return loader
   end
   return {
-    input_bin = make_bin(CRANE_IN_BIN, -1),
-    output_bin = make_bin(CRANE_OUT_BIN, 1),
+    bin = bin,
     input_loader = make_loader(-1, true),
     output_loader = make_loader(1, false),
   }
 end
 
 local function on_crane_built(shell)
-  storage.cranes[shell.unit_number] = { shell = shell, parts = create_crane_parts(shell) }
+  local direction = defines.direction.south
+  storage.cranes[shell.unit_number] = {
+    shell = shell,
+    direction = direction,
+    parts = create_crane_parts(shell, direction),
+  }
   script.register_on_object_destroyed(shell)
 end
 
--- Pull every serviceable machine's output slots into the output bin.
--- get_output_inventory() is type-agnostic (assembling machines and furnaces
--- alike).
-local function collect_outputs(machines, out_bin)
-  local out_inv = out_bin.get_inventory(defines.inventory.chest)
-  if out_inv.is_full() then
+local NEXT_DIR = {
+  [defines.direction.north] = defines.direction.east,
+  [defines.direction.east] = defines.direction.south,
+  [defines.direction.south] = defines.direction.west,
+  [defines.direction.west] = defines.direction.north,
+}
+
+-- Rotating reorients only the hidden loaders/bins (the shell graphic is fixed).
+-- Destroy and rebuild the parts on the next face, carrying bin contents and
+-- output-slot filters across.
+local function rotate_crane(entry)
+  local shell = entry.shell
+  if not shell.valid then
     return
   end
+  local saved
+  local old_bin = entry.parts.bin
+  if old_bin and old_bin.valid then
+    local inv = old_bin.get_inventory(defines.inventory.chest)
+    saved = { contents = inv.get_contents(), filters = {} }
+    for i = 1, #inv do
+      saved.filters[i] = inv.get_filter(i)
+    end
+  end
+  for _, part in pairs(entry.parts) do
+    if part.valid then
+      part.destroy()
+    end
+  end
+  entry.direction = NEXT_DIR[entry.direction] or defines.direction.south
+  entry.parts = create_crane_parts(shell, entry.direction)
+  if saved and entry.parts.bin.valid then
+    local inv = entry.parts.bin.get_inventory(defines.inventory.chest)
+    for i, filt in pairs(saved.filters) do
+      pcall(function()
+        inv.set_filter(i, filt)
+      end)
+    end
+    for _, stack in pairs(saved.contents) do
+      inv.insert(stack)
+    end
+  end
+end
+
+-- One R press can trigger both the linked custom-input and (if the ag-tower
+-- honours `rotatable`) on_player_rotated_entity; guard so we rotate only once.
+local function try_rotate_crane(entry)
+  if entry.last_rotate == game.tick then
+    return
+  end
+  entry.last_rotate = game.tick
+  rotate_crane(entry)
+end
+
+script.on_event("nullarbor-distributor-rotate", function(event)
+  local player = game.get_player(event.player_index)
+  local selected = player and player.selected
+  if selected and selected.valid and selected.name == CRANE then
+    local entry = storage.cranes[selected.unit_number]
+    if entry then
+      try_rotate_crane(entry)
+    end
+  end
+end)
+
+-- ---- 4-slot bin helpers + strict lane routing --------------------------
+local function slot_filter_name(inv, index)
+  local f = inv.get_filter(index)
+  if not f then
+    return nil
+  end
+  return type(f) == "table" and f.name or f
+end
+
+-- Add up to `count` of an item into ONE specific slot, respecting the slot's
+-- filter and stack size. Returns the amount added.
+local function add_to_slot(inv, index, name, quality, count)
+  if count <= 0 then
+    return 0
+  end
+  local filt = slot_filter_name(inv, index)
+  if filt and filt ~= name then
+    return 0
+  end
+  local slot = inv[index]
+  local stack_size = prototypes.item[name].stack_size
+  if slot.valid_for_read then
+    if slot.name ~= name then
+      return 0
+    end
+    local add = math.min(stack_size - slot.count, count)
+    if add > 0 then
+      slot.count = slot.count + add
+    end
+    return add
+  end
+  local add = math.min(stack_size, count)
+  slot.set_stack({ name = name, count = add, quality = quality })
+  return add
+end
+
+-- Strict lane -> slot: drain a loader transport line into one slot.
+local function pull_lane_to_slot(line, inv, index)
+  if not line then
+    return
+  end
+  for _, item in pairs(line.get_contents()) do
+    local moved = add_to_slot(inv, index, item.name, item.quality, item.count)
+    if moved > 0 then
+      line.remove_item({ name = item.name, count = moved, quality = item.quality })
+    end
+  end
+end
+
+-- Strict slot -> lane: feed a slot's item onto one loader transport line.
+local function push_slot_to_lane(inv, index, line)
+  if not line then
+    return
+  end
+  local slot = inv[index]
+  for _ = 1, 4 do
+    if not slot.valid_for_read or slot.count <= 0 then
+      break
+    end
+    if line.can_insert_at(0.25) and line.insert_at(0.25, { name = slot.name, quality = slot.quality }) then
+      slot.count = slot.count - 1
+    else
+      break
+    end
+  end
+end
+
+-- Pull machine outputs into the OUTPUT slots (3,4), honouring their filters.
+local function collect_outputs(machines, inv)
   for _, machine in pairs(machines) do
     local src = machine.get_output_inventory()
     if src then
       for _, item in pairs(src.get_contents()) do
-        local inserted = out_inv.insert({ name = item.name, count = item.count, quality = item.quality })
-        if inserted > 0 then
-          src.remove({ name = item.name, count = inserted, quality = item.quality })
+        local remaining = item.count
+        for _, index in ipairs(CRANE_OUT_SLOTS) do
+          if remaining <= 0 then
+            break
+          end
+          local moved = add_to_slot(inv, index, item.name, item.quality, remaining)
+          if moved > 0 then
+            src.remove({ name = item.name, count = moved, quality = item.quality })
+            remaining = remaining - moved
+          end
         end
       end
     end
   end
 end
 
--- Push ingredients from the input bin into machines that can use them, keeping
--- each machine topped up to CRANE_INPUT_TARGET of every item it accepts.
--- can_insert gates validity (only a machine's actual recipe ingredients / fuel
--- pass) and insert() routes each item to the right inventory, so this works
--- for furnaces (auto-recipe), assemblers (set recipe), and burner fuel slots
--- without parsing recipes. The distinct input/output bins ensure the crane
--- never re-collects what it just inserted.
-local function distribute_inputs(machines, in_bin)
-  local in_inv = in_bin.get_inventory(defines.inventory.chest)
-  if in_inv.is_empty() then
-    return
-  end
+-- Push the INPUT slots (1,2) into machines that can use them, capped to
+-- CRANE_INPUT_TARGET. can_insert gates validity (only real recipe
+-- ingredients/fuel pass); insert() routes to the right sub-inventory.
+local function distribute_inputs(machines, inv)
   for _, machine in pairs(machines) do
-    for _, item in pairs(in_inv.get_contents()) do
-      local need = CRANE_INPUT_TARGET - machine.get_item_count(item.name)
-      -- Probe acceptance with a single item (can_insert is all-or-nothing on
-      -- the full count); then insert the capped amount and let insert() take
-      -- whatever fits.
-      if need > 0 and machine.can_insert({ name = item.name, count = 1, quality = item.quality }) then
-        local inserted =
-          machine.insert({ name = item.name, count = math.min(need, item.count), quality = item.quality })
-        if inserted > 0 then
-          in_inv.remove({ name = item.name, count = inserted, quality = item.quality })
+    for _, index in ipairs(CRANE_IN_SLOTS) do
+      local slot = inv[index]
+      if slot.valid_for_read then
+        local name, quality = slot.name, slot.quality
+        local need = CRANE_INPUT_TARGET - machine.get_item_count(name)
+        if need > 0 and machine.can_insert({ name = name, count = 1, quality = quality }) then
+          local inserted = machine.insert({ name = name, count = math.min(need, slot.count), quality = quality })
+          if inserted > 0 then
+            slot.count = slot.count - inserted
+          end
         end
       end
     end
   end
 end
 
--- The crane's own hidden bins/loaders are containers/loaders, so the
--- crafting-machine type filter never picks them up.
 local function service_crane(entry)
   local shell = entry.shell
-  local out_bin = entry.parts.output_bin
-  local in_bin = entry.parts.input_bin
-  if not (shell.valid and out_bin.valid and in_bin.valid) then
+  local bin = entry.parts.bin
+  if not (shell.valid and bin and bin.valid) then
     return
   end
+  local inv = bin.get_inventory(defines.inventory.chest)
+  local in_loader = entry.parts.input_loader
+  local out_loader = entry.parts.output_loader
+  -- INPUT: each input belt lane -> its slot.
+  if in_loader and in_loader.valid then
+    pull_lane_to_slot(in_loader.get_transport_line(1), inv, CRANE_IN_SLOTS[1])
+    pull_lane_to_slot(in_loader.get_transport_line(2), inv, CRANE_IN_SLOTS[2])
+  end
+  local pos = shell.position
   local machines = shell.surface.find_entities_filtered({
-    position = shell.position,
-    radius = CRANE_RADIUS,
+    area = {
+      { pos.x - CRANE_AREA_HALF, pos.y - CRANE_AREA_HALF },
+      { pos.x + CRANE_AREA_HALF, pos.y + CRANE_AREA_HALF },
+    },
     type = { "assembling-machine", "furnace" },
   })
-  collect_outputs(machines, out_bin)
-  distribute_inputs(machines, in_bin)
+  distribute_inputs(machines, inv)
+  collect_outputs(machines, inv)
+  -- OUTPUT: each output slot -> its belt lane.
+  if out_loader and out_loader.valid then
+    push_slot_to_lane(inv, CRANE_OUT_SLOTS[1], out_loader.get_transport_line(1))
+    push_slot_to_lane(inv, CRANE_OUT_SLOTS[2], out_loader.get_transport_line(2))
+  end
 end
 
 script.on_nth_tick(30, function()
@@ -319,35 +475,55 @@ end)
 -- the pane (or picks a slot's stack up into the cursor); shift+left-click
 -- quick-transfers a slot to the player inventory.
 local CRANE_GUI = "nullarbor-crane-gui"
-local CRANE_BIN_SLOTS = 16
+local CRANE_BIN_SLOTS = 2 -- 2 lanes: slot 1 = left lane, slot 2 = right lane
 
+-- Input slots are plain hand-managed item buttons; output slots are native
+-- choose-elem-button item pickers (the reusable filter GUI) -- each names the
+-- item that output lane carries.
 local function build_pane(parent, title, pane_id)
   local pane = parent.add({ type = "frame", style = "inside_shallow_frame_with_padding", direction = "vertical" })
   pane.add({ type = "label", style = "caption_label", caption = title })
-  local tbl = pane.add({ type = "table", name = "slots", column_count = 4 })
+  local tbl = pane.add({ type = "table", name = "slots", column_count = 2 })
   for i = 1, CRANE_BIN_SLOTS do
-    local btn = tbl.add({ type = "sprite-button", name = "slot_" .. i, style = "slot_button" })
+    local btn
+    if pane_id == "output" then
+      btn = tbl.add({ type = "choose-elem-button", name = "slot_" .. i, elem_type = "item" })
+    else
+      btn = tbl.add({ type = "sprite-button", name = "slot_" .. i, style = "slot_button" })
+    end
     btn.tags = { crane_gui = true, pane = pane_id, slot = i }
   end
   return tbl
 end
 
-local function refresh_pane(tbl, bin)
+local function filter_name(filter)
+  if not filter then
+    return nil
+  end
+  return type(filter) == "table" and filter.name or filter
+end
+
+local function refresh_pane(tbl, bin, pane_id)
   if not (tbl and tbl.valid and bin.valid) then
     return
   end
   local inv = bin.get_inventory(defines.inventory.chest)
   for i = 1, CRANE_BIN_SLOTS do
     local btn = tbl["slot_" .. i]
-    local stack = inv[i]
-    if stack.valid_for_read then
-      btn.sprite = "item/" .. stack.name
-      btn.number = stack.count
-      btn.elem_tooltip = { type = "item", name = stack.name }
+    if pane_id == "output" then
+      -- Filter picker: show the chosen item (choose-elem-button has no .number).
+      btn.elem_value = filter_name(inv.get_filter(i))
     else
-      btn.sprite = nil
-      btn.number = nil
-      btn.elem_tooltip = nil
+      local stack = inv[i]
+      if stack.valid_for_read then
+        btn.sprite = "item/" .. stack.name
+        btn.number = stack.count
+        btn.elem_tooltip = { type = "item", name = stack.name }
+      else
+        btn.sprite = nil
+        btn.number = nil
+        btn.elem_tooltip = nil
+      end
     end
   end
 end
@@ -367,33 +543,19 @@ local function refresh_crane_gui(player_index)
     storage.crane_guis[player_index] = nil
     return
   end
-  refresh_pane(rec.input_table, entry.parts.input_bin)
-  refresh_pane(rec.output_table, entry.parts.output_bin)
+  refresh_pane(rec.input_table, entry.parts.input_bin, "input")
+  refresh_pane(rec.output_table, entry.parts.output_bin, "output")
 end
 
 local function open_crane_gui(player, entry)
-  local screen = player.gui.screen
-  if screen[CRANE_GUI] then
-    screen[CRANE_GUI].destroy()
+  -- Open the REAL 4-slot container so the player gets native filtered slots
+  -- (count, faint filter-icon background, middle-click to set a filter). Slots
+  -- 1/2 = input lanes, 3/4 = output lanes; filter 3/4 to pick each output lane's
+  -- item. collect_outputs honours those filters.
+  local bin = entry.parts.bin
+  if bin and bin.valid then
+    player.opened = bin
   end
-  local frame = screen.add({ type = "frame", name = CRANE_GUI, direction = "vertical" })
-  frame.add({
-    type = "label",
-    style = "frame_title",
-    caption = { "entity-name.nullarbor-distributor-crane" },
-    ignored_by_interaction = true,
-  })
-  local body = frame.add({ type = "flow", direction = "horizontal" })
-  local input_table = build_pane(body, { "nullarbor.crane-input" }, "input")
-  local output_table = build_pane(body, { "nullarbor.crane-output" }, "output")
-  frame.auto_center = true
-  storage.crane_guis[player.index] = {
-    unit_number = entry.shell.unit_number,
-    input_table = input_table,
-    output_table = output_table,
-  }
-  player.opened = frame
-  refresh_crane_gui(player.index)
 end
 
 script.on_event("nullarbor-crane-open", function(event)
@@ -418,7 +580,12 @@ script.on_event(defines.events.on_gui_click, function(event)
   if not (player and entry and entry.shell.valid) then
     return
   end
-  local bin = element.tags.pane == "input" and entry.parts.input_bin or entry.parts.output_bin
+  -- Output slots are choose-elem-button pickers (filter changes arrive via
+  -- on_gui_elem_changed); only the input pane hand-manages items on click.
+  if element.tags.pane ~= "input" then
+    return
+  end
+  local bin = entry.parts.input_bin
   if not bin.valid then
     return
   end
@@ -426,7 +593,7 @@ script.on_event(defines.events.on_gui_click, function(event)
   local slot = inv[element.tags.slot]
   local cursor = player.cursor_stack
   if cursor and cursor.valid_for_read then
-    -- Putting items down: insert the held stack into this bin.
+    -- Putting items down: insert the held stack into the input bin.
     local inserted = inv.insert(cursor)
     cursor.count = cursor.count - inserted
   elseif slot.valid_for_read then
@@ -440,6 +607,22 @@ script.on_event(defines.events.on_gui_click, function(event)
       player.cursor_stack.transfer_stack(slot)
     end
   end
+  refresh_crane_gui(event.player_index)
+end)
+
+-- Output filter picked/cleared via the choose-elem-button item picker.
+script.on_event(defines.events.on_gui_elem_changed, function(event)
+  local element = event.element
+  if not (element and element.valid and element.tags and element.tags.crane_gui and element.tags.pane == "output") then
+    return
+  end
+  local rec = storage.crane_guis[event.player_index]
+  local entry = rec and storage.cranes[rec.unit_number]
+  if not (entry and entry.parts.output_bin.valid) then
+    return
+  end
+  local inv = entry.parts.output_bin.get_inventory(defines.inventory.chest)
+  inv.set_filter(element.tags.slot, element.elem_value)
   refresh_crane_gui(event.player_index)
 end)
 
@@ -546,6 +729,13 @@ end)
 -- carrying the bin contents over.
 script.on_event(defines.events.on_player_rotated_entity, function(event)
   local entity = event.entity
+  if entity.valid and entity.name == CRANE then
+    local entry = storage.cranes[entity.unit_number]
+    if entry then
+      try_rotate_crane(entry)
+    end
+    return
+  end
   if not (entity.valid and entity.name == GANTRY) then
     return
   end
@@ -858,7 +1048,7 @@ local BAND_MIN = 4 -- swarmers per band at e=0 (morphing escalates them)
 local BAND_MAX = 12 -- at e=1
 local EMERGENCE_SPREAD = 3 -- band scatter radius
 local EMERGENCE_DUST = "nullarbor-emergence-dust" -- custom large tan dust cloud
-local EMERGENCE_DUST_PERIOD = 20 -- ticks between dust puffs per site (unique period)
+local EMERGENCE_DUST_PERIOD = 18 -- ticks between dust puffs per site (unique period; 20 is the morph loop)
 local EMERGENCE_DUST_JITTER = 2.5 -- puff offset from the marker centre
 local BOUNDARY_THRESHOLD = 20 -- chunk pollution counted as "the cloud"
 local BOUNDARY_SEARCH_CHUNKS = 5 -- how far out to look for the boundary
@@ -1193,6 +1383,7 @@ script.on_init(function()
   storage.gantries = {}
   storage.cranes = {}
   storage.crane_guis = {}
+  storage.crane_hover = {}
   storage.morphs = {}
   storage.morphing = {}
   storage.solar_panels = {}
@@ -1208,6 +1399,7 @@ script.on_configuration_changed(function()
   storage.gantries = storage.gantries or {}
   storage.cranes = storage.cranes or {}
   storage.crane_guis = storage.crane_guis or {}
+  storage.crane_hover = storage.crane_hover or {}
   storage.morphs = storage.morphs or {}
   storage.morphing = storage.morphing or {}
   storage.emergences = storage.emergences or {}
@@ -1353,6 +1545,16 @@ script.on_event(defines.events.on_gui_opened, function(event)
   if event.gui_type ~= defines.gui_type.entity then
     return
   end
+  -- Distributor: replace the native ag-tower GUI with our custom two-pane GUI.
+  local opened = event.entity
+  if opened and opened.valid and opened.name == CRANE then
+    local player = game.get_player(event.player_index)
+    local entry = storage.cranes[opened.unit_number]
+    if player and entry then
+      open_crane_gui(player, entry)
+    end
+    return
+  end
   local wagon = event.entity
   if not (wagon and wagon.valid and wagon.name == MINING_WAGON) then
     return
@@ -1424,29 +1626,71 @@ local function clear_mining_hover(player_index)
   storage.mining_wagon_hover[player_index] = nil
 end
 
-script.on_event(defines.events.on_selected_entity_changed, function(event)
-  clear_mining_hover(event.player_index)
-  local player = game.get_player(event.player_index)
-  local selected = player and player.selected
-  if not (selected and selected.valid and selected.name == MINING_WAGON) then
-    return
-  end
-  local pos = selected.position
-  local objs = {}
-  for ix = math.floor(pos.x - MINING_AREA_R), math.ceil(pos.x + MINING_AREA_R) do
-    for iy = math.floor(pos.y - MINING_AREA_R), math.ceil(pos.y + MINING_AREA_R) do
-      local tcx, tcy = ix + 0.5, iy + 0.5
-      if math.abs(tcx - pos.x) <= MINING_AREA_R and math.abs(tcy - pos.y) <= MINING_AREA_R then
-        objs[#objs + 1] = rendering.draw_sprite({
-          sprite = "nullarbor-mining-radius-viz",
-          target = { tcx, tcy },
-          surface = selected.surface,
-          players = { player },
-          render_layer = "radius-visualization", -- under the wagon, over ground/resources
-          tint = { r = 1, g = 1, b = 1, a = 0.1 }, -- semi-transparent like native
-        })
+local function clear_crane_hover(player_index)
+  local objs = storage.crane_hover[player_index]
+  if objs then
+    for _, obj in pairs(objs) do
+      if obj.valid then
+        obj.destroy()
       end
     end
   end
-  storage.mining_wagon_hover[event.player_index] = objs
+  storage.crane_hover[player_index] = nil
+end
+
+-- Outline each building the distributor services (in its 7x7) while hovered.
+local function draw_crane_hover(player, crane)
+  local pos = crane.position
+  local machines = crane.surface.find_entities_filtered({
+    area = {
+      { pos.x - CRANE_AREA_HALF, pos.y - CRANE_AREA_HALF },
+      { pos.x + CRANE_AREA_HALF, pos.y + CRANE_AREA_HALF },
+    },
+    type = { "assembling-machine", "furnace" },
+  })
+  local objs = {}
+  for _, machine in pairs(machines) do
+    -- Native highlight-box: the standard yellow corner-bracket highlight, shown
+    -- only to this player. Destroyed on hover change by clear_crane_hover.
+    objs[#objs + 1] = crane.surface.create_entity({
+      name = "highlight-box",
+      position = machine.position,
+      bounding_box = machine.selection_box,
+      box_type = "copy",
+      render_player_index = player.index,
+    })
+  end
+  return objs
+end
+
+script.on_event(defines.events.on_selected_entity_changed, function(event)
+  clear_mining_hover(event.player_index)
+  clear_crane_hover(event.player_index)
+  local player = game.get_player(event.player_index)
+  local selected = player and player.selected
+  if not (selected and selected.valid) then
+    return
+  end
+  if selected.name == MINING_WAGON then
+    local pos = selected.position
+    local objs = {}
+    for ix = math.floor(pos.x - MINING_AREA_R), math.ceil(pos.x + MINING_AREA_R) do
+      for iy = math.floor(pos.y - MINING_AREA_R), math.ceil(pos.y + MINING_AREA_R) do
+        local tcx, tcy = ix + 0.5, iy + 0.5
+        if math.abs(tcx - pos.x) <= MINING_AREA_R and math.abs(tcy - pos.y) <= MINING_AREA_R then
+          objs[#objs + 1] = rendering.draw_sprite({
+            sprite = "nullarbor-mining-radius-viz",
+            target = { tcx, tcy },
+            surface = selected.surface,
+            players = { player },
+            render_layer = "radius-visualization",
+            tint = { r = 1, g = 1, b = 1, a = 0.1 },
+          })
+        end
+      end
+    end
+    storage.mining_wagon_hover[event.player_index] = objs
+  elseif selected.name == CRANE then
+    storage.crane_hover[event.player_index] = draw_crane_hover(player, selected)
+  end
 end)
