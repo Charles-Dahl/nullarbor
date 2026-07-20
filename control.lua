@@ -364,16 +364,15 @@ local function pull_lane_to_slot(line, inv, index)
   end
 end
 
--- Strict slot -> lane: feed a slot's item onto one loader transport line.
+-- Strict slot -> lane: feed a slot's item onto one loader transport line. Runs
+-- every tick and inserts until the lane is full at the feed point, so throughput
+-- self-regulates to belt speed.
 local function push_slot_to_lane(inv, index, line)
   if not line then
     return
   end
   local slot = inv[index]
-  for _ = 1, 4 do
-    if not slot.valid_for_read or slot.count <= 0 then
-      break
-    end
+  while slot.valid_for_read and slot.count > 0 do
     if line.can_insert_at(0.25) and line.insert_at(0.25, { name = slot.name, quality = slot.quality }) then
       slot.count = slot.count - 1
     else
@@ -382,22 +381,47 @@ local function push_slot_to_lane(inv, index, line)
   end
 end
 
+-- Route an item across the OUTPUT slots (3,4), balancing across any that accept
+-- it (unfiltered or filtered to this item) so both lanes fill evenly. Adds to the
+-- accepting slot that currently holds the least of it, in small chunks.
+local function add_to_output_slots(inv, name, quality, count)
+  local stack_size = prototypes.item[name].stack_size
+  local moved_total = 0
+  while count > 0 do
+    local target, target_have
+    for _, index in ipairs(CRANE_OUT_SLOTS) do
+      local filt = slot_filter_name(inv, index)
+      local slot = inv[index]
+      local occupied_other = slot.valid_for_read and slot.name ~= name
+      if (not filt or filt == name) and not occupied_other then
+        local have = slot.valid_for_read and slot.count or 0
+        if have < stack_size and (not target_have or have < target_have) then
+          target, target_have = index, have
+        end
+      end
+    end
+    if not target then
+      break
+    end
+    local moved = add_to_slot(inv, target, name, quality, math.min(count, 8))
+    if moved <= 0 then
+      break
+    end
+    moved_total = moved_total + moved
+    count = count - moved
+  end
+  return moved_total
+end
+
 -- Pull machine outputs into the OUTPUT slots (3,4), honouring their filters.
 local function collect_outputs(machines, inv)
   for _, machine in pairs(machines) do
     local src = machine.get_output_inventory()
     if src then
       for _, item in pairs(src.get_contents()) do
-        local remaining = item.count
-        for _, index in ipairs(CRANE_OUT_SLOTS) do
-          if remaining <= 0 then
-            break
-          end
-          local moved = add_to_slot(inv, index, item.name, item.quality, remaining)
-          if moved > 0 then
-            src.remove({ name = item.name, count = moved, quality = item.quality })
-            remaining = remaining - moved
-          end
+        local moved = add_to_output_slots(inv, item.name, item.quality, item.count)
+        if moved > 0 then
+          src.remove({ name = item.name, count = moved, quality = item.quality })
         end
       end
     end
@@ -425,20 +449,33 @@ local function distribute_inputs(machines, inv)
   end
 end
 
-local function service_crane(entry)
+-- Belt <-> slot lane transfer. Runs EVERY tick so items flow at belt speed.
+local function service_crane_lanes(entry)
+  local bin = entry.parts.bin
+  if not (bin and bin.valid) then
+    return
+  end
+  local inv = bin.get_inventory(defines.inventory.chest)
+  local in_loader = entry.parts.input_loader
+  if in_loader and in_loader.valid then
+    pull_lane_to_slot(in_loader.get_transport_line(1), inv, CRANE_IN_SLOTS[1])
+    pull_lane_to_slot(in_loader.get_transport_line(2), inv, CRANE_IN_SLOTS[2])
+  end
+  local out_loader = entry.parts.output_loader
+  if out_loader and out_loader.valid then
+    push_slot_to_lane(inv, CRANE_OUT_SLOTS[1], out_loader.get_transport_line(1))
+    push_slot_to_lane(inv, CRANE_OUT_SLOTS[2], out_loader.get_transport_line(2))
+  end
+end
+
+-- Machine exchange (distribute inputs, collect outputs). Periodic is fine.
+local function service_crane_machines(entry)
   local shell = entry.shell
   local bin = entry.parts.bin
   if not (shell.valid and bin and bin.valid) then
     return
   end
   local inv = bin.get_inventory(defines.inventory.chest)
-  local in_loader = entry.parts.input_loader
-  local out_loader = entry.parts.output_loader
-  -- INPUT: each input belt lane -> its slot.
-  if in_loader and in_loader.valid then
-    pull_lane_to_slot(in_loader.get_transport_line(1), inv, CRANE_IN_SLOTS[1])
-    pull_lane_to_slot(in_loader.get_transport_line(2), inv, CRANE_IN_SLOTS[2])
-  end
   local pos = shell.position
   local machines = shell.surface.find_entities_filtered({
     area = {
@@ -449,17 +486,22 @@ local function service_crane(entry)
   })
   distribute_inputs(machines, inv)
   collect_outputs(machines, inv)
-  -- OUTPUT: each output slot -> its belt lane.
-  if out_loader and out_loader.valid then
-    push_slot_to_lane(inv, CRANE_OUT_SLOTS[1], out_loader.get_transport_line(1))
-    push_slot_to_lane(inv, CRANE_OUT_SLOTS[2], out_loader.get_transport_line(2))
-  end
 end
 
+-- Lane transfer at belt speed.
+script.on_nth_tick(1, function()
+  for _, entry in pairs(storage.cranes) do
+    if entry.shell.valid then
+      service_crane_lanes(entry)
+    end
+  end
+end)
+
+-- Machine exchange + prune dead cranes.
 script.on_nth_tick(30, function()
   for unit_number, entry in pairs(storage.cranes) do
     if entry.shell.valid then
-      service_crane(entry)
+      service_crane_machines(entry)
     else
       storage.cranes[unit_number] = nil
     end
