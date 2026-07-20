@@ -468,85 +468,6 @@ end)
 
 -- ========================= crane GUI =========================
 
--- A custom window with two labelled panes -- Input and Output -- each a grid
--- of slot buttons mirroring the matching hidden container. The buffers are
--- two genuinely distinct inventories; this GUI is just how the player sees
--- and hand-manages them. Interaction: left-click moves the cursor stack into
--- the pane (or picks a slot's stack up into the cursor); shift+left-click
--- quick-transfers a slot to the player inventory.
-local CRANE_GUI = "nullarbor-crane-gui"
-local CRANE_BIN_SLOTS = 2 -- 2 lanes: slot 1 = left lane, slot 2 = right lane
-
--- Input slots are plain hand-managed item buttons; output slots are native
--- choose-elem-button item pickers (the reusable filter GUI) -- each names the
--- item that output lane carries.
-local function build_pane(parent, title, pane_id)
-  local pane = parent.add({ type = "frame", style = "inside_shallow_frame_with_padding", direction = "vertical" })
-  pane.add({ type = "label", style = "caption_label", caption = title })
-  local tbl = pane.add({ type = "table", name = "slots", column_count = 2 })
-  for i = 1, CRANE_BIN_SLOTS do
-    local btn
-    if pane_id == "output" then
-      btn = tbl.add({ type = "choose-elem-button", name = "slot_" .. i, elem_type = "item" })
-    else
-      btn = tbl.add({ type = "sprite-button", name = "slot_" .. i, style = "slot_button" })
-    end
-    btn.tags = { crane_gui = true, pane = pane_id, slot = i }
-  end
-  return tbl
-end
-
-local function filter_name(filter)
-  if not filter then
-    return nil
-  end
-  return type(filter) == "table" and filter.name or filter
-end
-
-local function refresh_pane(tbl, bin, pane_id)
-  if not (tbl and tbl.valid and bin.valid) then
-    return
-  end
-  local inv = bin.get_inventory(defines.inventory.chest)
-  for i = 1, CRANE_BIN_SLOTS do
-    local btn = tbl["slot_" .. i]
-    if pane_id == "output" then
-      -- Filter picker: show the chosen item (choose-elem-button has no .number).
-      btn.elem_value = filter_name(inv.get_filter(i))
-    else
-      local stack = inv[i]
-      if stack.valid_for_read then
-        btn.sprite = "item/" .. stack.name
-        btn.number = stack.count
-        btn.elem_tooltip = { type = "item", name = stack.name }
-      else
-        btn.sprite = nil
-        btn.number = nil
-        btn.elem_tooltip = nil
-      end
-    end
-  end
-end
-
-local function refresh_crane_gui(player_index)
-  local rec = storage.crane_guis[player_index]
-  if not rec then
-    return
-  end
-  local entry = storage.cranes[rec.unit_number]
-  local player = game.get_player(player_index)
-  local frame = player and player.gui.screen[CRANE_GUI]
-  if not (entry and entry.shell.valid and frame and frame.valid) then
-    if frame and frame.valid then
-      frame.destroy()
-    end
-    storage.crane_guis[player_index] = nil
-    return
-  end
-  refresh_pane(rec.input_table, entry.parts.input_bin, "input")
-  refresh_pane(rec.output_table, entry.parts.output_bin, "output")
-end
-
 local function open_crane_gui(player, entry)
   -- Open the REAL 4-slot container so the player gets native filtered slots
   -- (count, faint filter-icon background, middle-click to set a filter). Slots
@@ -569,76 +490,7 @@ script.on_event("nullarbor-crane-open", function(event)
   end
 end)
 
-script.on_event(defines.events.on_gui_click, function(event)
-  local element = event.element
-  if not (element and element.valid and element.tags and element.tags.crane_gui) then
-    return
-  end
-  local player = game.get_player(event.player_index)
-  local rec = storage.crane_guis[event.player_index]
-  local entry = rec and storage.cranes[rec.unit_number]
-  if not (player and entry and entry.shell.valid) then
-    return
-  end
-  -- Output slots are choose-elem-button pickers (filter changes arrive via
-  -- on_gui_elem_changed); only the input pane hand-manages items on click.
-  if element.tags.pane ~= "input" then
-    return
-  end
-  local bin = entry.parts.input_bin
-  if not bin.valid then
-    return
-  end
-  local inv = bin.get_inventory(defines.inventory.chest)
-  local slot = inv[element.tags.slot]
-  local cursor = player.cursor_stack
-  if cursor and cursor.valid_for_read then
-    -- Putting items down: insert the held stack into the input bin.
-    local inserted = inv.insert(cursor)
-    cursor.count = cursor.count - inserted
-  elseif slot.valid_for_read then
-    if event.shift then
-      -- Quick-transfer the slot to the player's inventory.
-      local main = player.get_main_inventory()
-      local moved = main and main.insert(slot) or 0
-      slot.count = slot.count - moved
-    else
-      -- Pick the slot's stack up into the cursor.
-      player.cursor_stack.transfer_stack(slot)
-    end
-  end
-  refresh_crane_gui(event.player_index)
-end)
-
--- Output filter picked/cleared via the choose-elem-button item picker.
-script.on_event(defines.events.on_gui_elem_changed, function(event)
-  local element = event.element
-  if not (element and element.valid and element.tags and element.tags.crane_gui and element.tags.pane == "output") then
-    return
-  end
-  local rec = storage.crane_guis[event.player_index]
-  local entry = rec and storage.cranes[rec.unit_number]
-  if not (entry and entry.parts.output_bin.valid) then
-    return
-  end
-  local inv = entry.parts.output_bin.get_inventory(defines.inventory.chest)
-  inv.set_filter(element.tags.slot, element.elem_value)
-  refresh_crane_gui(event.player_index)
-end)
-
--- Keep open GUIs in sync as the servicing loop and loaders move items.
-script.on_nth_tick(15, function()
-  for player_index in pairs(storage.crane_guis) do
-    refresh_crane_gui(player_index)
-  end
-end)
-
 script.on_event(defines.events.on_gui_closed, function(event)
-  if event.element and event.element.valid and event.element.name == CRANE_GUI then
-    event.element.destroy()
-    storage.crane_guis[event.player_index] = nil
-    return
-  end
   -- Mining wagon closed: tear down its relative fuel bar.
   if storage.mining_wagon_guis and storage.mining_wagon_guis[event.player_index] then
     storage.mining_wagon_guis[event.player_index] = nil
@@ -1382,7 +1234,6 @@ end)
 script.on_init(function()
   storage.gantries = {}
   storage.cranes = {}
-  storage.crane_guis = {}
   storage.crane_hover = {}
   storage.morphs = {}
   storage.morphing = {}
@@ -1398,7 +1249,6 @@ end)
 script.on_configuration_changed(function()
   storage.gantries = storage.gantries or {}
   storage.cranes = storage.cranes or {}
-  storage.crane_guis = storage.crane_guis or {}
   storage.crane_hover = storage.crane_hover or {}
   storage.morphs = storage.morphs or {}
   storage.morphing = storage.morphing or {}
@@ -1545,7 +1395,7 @@ script.on_event(defines.events.on_gui_opened, function(event)
   if event.gui_type ~= defines.gui_type.entity then
     return
   end
-  -- Distributor: replace the native ag-tower GUI with our custom two-pane GUI.
+  -- Distributor: replace the native ag-tower GUI with the bin's native container GUI.
   local opened = event.entity
   if opened and opened.valid and opened.name == CRANE then
     local player = game.get_player(event.player_index)
