@@ -1343,6 +1343,25 @@ local function train_locomotives(train)
   return list
 end
 
+-- Total fuel energy (J) currently in a locomotive's fuel inventory -- i.e. what
+-- the drill can actually pull. Excludes remaining_burning_fuel (already committed
+-- to movement). Used to always draw from the fullest loco so all locos drain evenly.
+local function loco_fuel_energy(loco)
+  local lb = loco.burner
+  local linv = lb and lb.inventory
+  if not linv then
+    return 0
+  end
+  local energy = 0
+  for i = 1, #linv do
+    local stack = linv[i]
+    if stack.valid_for_read then
+      energy = energy + stack.count * prototypes.item[stack.name].fuel_value
+    end
+  end
+  return energy
+end
+
 -- Fraction (0..1) of the drill's fuel buffer, for the wagon fuel bar.
 local function drill_fuel_fraction(drill)
   local burner = drill.burner
@@ -1358,26 +1377,33 @@ local function drill_fuel_fraction(drill)
 end
 
 -- Top up the drill's single-slot buffer with one fuel item pulled from a train
--- locomotive -- the wagons-per-loco balance lever.
+-- locomotive -- the wagons-per-loco balance lever. Draws from whichever loco
+-- currently holds the most fuel, so every loco drains evenly regardless of how
+-- the consist interleaves wagons and locomotives (stateless, self-correcting).
 local function feed_drill(drill, train)
   local burner = drill.burner
   local inv = burner and burner.inventory
   if not inv or not inv.is_empty() then
     return
   end
+  local best_loco, best_energy
   for _, loco in ipairs(train_locomotives(train)) do
-    local lb = loco.burner
-    local linv = lb and lb.inventory
-    if linv then
-      for i = 1, #linv do
-        local stack = linv[i]
-        if stack.valid_for_read then
-          local moved = inv.insert({ name = stack.name, count = 1, quality = stack.quality })
-          if moved > 0 then
-            stack.count = stack.count - moved
-            return
-          end
-        end
+    local energy = loco_fuel_energy(loco)
+    if energy > 0 and (not best_energy or energy > best_energy) then
+      best_loco, best_energy = loco, energy
+    end
+  end
+  if not best_loco then
+    return
+  end
+  local linv = best_loco.burner.inventory
+  for i = 1, #linv do
+    local stack = linv[i]
+    if stack.valid_for_read then
+      local moved = inv.insert({ name = stack.name, count = 1, quality = stack.quality })
+      if moved > 0 then
+        stack.count = stack.count - moved
+        return
       end
     end
   end
