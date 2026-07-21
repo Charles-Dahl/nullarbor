@@ -22,7 +22,7 @@ drill.next_upgrade = nil
 drill.collision_mask = { layers = {} } -- collisionless: harmless when paused between stops
 drill.resource_categories = { "basic-solid" }
 drill.resource_searching_radius = 2.99 -- ~6x6, covers the wagon footprint (tunable)
-drill.mining_speed = 2.0 -- 4x a single electric drill (0.5); tunable
+drill.mining_speed = 4.0 -- 8x a single electric drill (0.5); tunable
 -- Drop onto the wagon's own tile (the deepcopied burner drill defaults to an
 -- offset that lands ~1 tile away). {0,0} is orientation-agnostic so it deposits
 -- into the wagon whether it sits east-west or north-south.
