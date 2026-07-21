@@ -1,5 +1,5 @@
 -- Distributor: a heavy crane that services a cluster of crafting machines in a
--- 7x7 area, handling input and output from one structure (see CLAUDE.md).
+-- 9x9 area, handling input and output from one structure (see CLAUDE.md).
 --
 -- Shell: a cloned agricultural-tower, chosen ONLY for two native features a
 -- simple-entity can't provide -- the crane-arm graphic and a radius shown while
@@ -87,9 +87,14 @@ tower.energy_usage = "1W"
 tower.input_inventory_size = 0
 -- No spore emissions.
 tower.emissions_per_minute = nil
--- Radius shown while holding the item (issue 5, placing). radius = 2 => 7x7
--- (3x3 footprint + 2 tiles each side), matching CRANE_AREA_HALF in control.lua.
-tower.radius = 2
+-- Radius shown while holding the item (issue 5, placing). The agri-tower radius
+-- visualization is drawn on a 3-tile-per-radius-unit growth grid (the visible
+-- "3x3 sub-grid"), so the preview reach is 3*radius tiles from centre -- NOT one
+-- tile per unit. radius = 1 => reach 3 tiles beyond the footprint => 9x9, outer
+-- edge +/-4.5, exactly matching CRANE_AREA_HALF in control.lua. (Base agri tower
+-- is radius = 3 => a 9-tile reach.) Do not "correct" this back to 2 -- that
+-- renders ~15x15.
+tower.radius = 1
 -- Rotatable so pressing R doesn't flash "This can't be rotated"; the graphic is
 -- symmetric, but on_player_rotated_entity reorients the loaders (control.lua).
 tower.rotatable = true

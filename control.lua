@@ -29,7 +29,7 @@ local CRANE_BIN = "nullarbor-crane-bin"
 -- Bin slot layout: 1 = input left lane, 2 = input right, 3 = output left, 4 = output right.
 local CRANE_IN_SLOTS = { 1, 2 }
 local CRANE_OUT_SLOTS = { 3, 4 }
-local CRANE_AREA_HALF = 3.5 -- 7x7 area: 3x3 footprint + 2 tiles each side
+local CRANE_AREA_HALF = 4.5 -- 9x9 area: 3x3 footprint + 3 tiles each side (matches the radius=1 preview)
 
 local MINING_WAGON = "nullarbor-mining-wagon"
 local MINING_DRILL = "nullarbor-mining-wagon-drill"
@@ -1556,7 +1556,7 @@ local function clear_crane_hover(player_index)
   storage.crane_hover[player_index] = nil
 end
 
--- Outline each building the distributor services (in its 7x7) while hovered.
+-- Outline each building the distributor services (in its 9x9) while hovered.
 local function draw_crane_hover(player, crane)
   local pos = crane.position
   local machines = crane.surface.find_entities_filtered({
